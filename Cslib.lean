@@ -2,6 +2,9 @@ module  -- shake: keep-all
 
 public import Cslib.Algorithms.Lean.MergeSort.MergeSort
 public import Cslib.Algorithms.Lean.TimeM
+public import Cslib.Algorithms.Lean.UnionFind.Ackermann
+public import Cslib.Algorithms.Lean.UnionFind.Amortized
+public import Cslib.Algorithms.Lean.UnionFind.Basic
 public import Cslib.Computability.Automata.Acceptors.Acceptor
 public import Cslib.Computability.Automata.Acceptors.OmegaAcceptor
 public import Cslib.Computability.Automata.DA.Basic
