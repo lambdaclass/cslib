@@ -255,6 +255,22 @@ decreasing_by
   simp_all only [not_lt]
   have := lt_ack_right k r; omega
 
+/-- `ack(k+1, n) = ackIter(k, n+1, 1)`. Standard identity. -/
+theorem ack_succ_eq_ackIter (k n : ℕ) :
+    ack (k + 1) n = ackIter k (n + 1) 1 := by
+  induction n with
+  | zero => simp [ack_succ_zero, ackIter]
+  | succ n ih => simp [ack_succ_succ, ih, ackIter_succ]
+
+/-- `ackIter` is monotone in the base value. -/
+theorem ackIter_mono_base {k i a b : ℕ}
+    (h : a ≤ b) : ackIter k i a ≤ ackIter k i b := by
+  induction i with
+  | zero => simp [ackIter]; exact h
+  | succ i ih =>
+    simp only [ackIter_succ]
+    exact ack_le_ack (le_refl k) ih
+
 /-- `ack(invAck₂(r, n) - 1, r) ≤ n - 1` when invAck₂ > 0.
 Equivalently, the level below invAck₂ does NOT reach n. -/
 theorem ack_pred_invAck₂_lt {r n : ℕ}
