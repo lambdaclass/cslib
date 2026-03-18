@@ -1418,31 +1418,6 @@ private theorem Φ_union_le (uf : UnionFind)
   exact Nat.le_trans key
     (Nat.add_le_add_right hΦ_s2_uf _)
 
-/-- Amortized union: the cost of two finds plus the
-link's potential increase. The path costs are bounded
-by `log₂(n)` each (worst case per find), and the
-potential increase from creating one new non-root is
-bounded by `(α+1)·(log₂(n)+1)`. For the O(α(n)) total
-bound, use `Φ_le_tight` which shows the total Φ across
-all unions is O(n·α(n)), making the amortized cost per
-operation O(α(n)) when spread across m+n operations. -/
-theorem amortized_union (uf : UnionFind) (x y : ℕ)
-    (hrb : RankBound uf) :
-    (unionOp x y uf).2 + Φ (unionOp x y uf).1 ≤
-      (2 * Nat.log 2 uf.size + 1 +
-        (invAck uf.size + 1) *
-          (Nat.log 2 uf.size + 1)) + Φ uf := by
-  simp only [unionOp]
-  split
-  · split
-    · rename_i hx hy
-      simp only
-      have hplx := pathLength_le_log_size uf x hrb
-      have hply := pathLength_le_log_size uf y hrb
-      have hΦ := Φ_union_le uf ⟨x, hx⟩ ⟨y, hy⟩ hrb
-      omega
-    · simp
-  · simp
 
 /-- Total cost threading state through operations. -/
 def totalCost :
