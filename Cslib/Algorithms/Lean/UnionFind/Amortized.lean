@@ -1419,6 +1419,15 @@ private theorem Φ_union_le (uf : UnionFind)
     (Nat.add_le_add_right hΦ_s2_uf _)
 
 
+/-- The cost of union equals two find costs plus 1. -/
+theorem unionOp_cost (uf : UnionFind) (x y : ℕ) :
+    (unionOp x y uf).2 ≤
+      (findOp x uf).2 + (findOp y uf).2 + 1 := by
+  simp only [unionOp, findOp]; split
+  · split <;> omega
+  · omega
+
+
 /-- Total cost threading state through operations. -/
 def totalCost :
     List (StatefulOp UnionFind) → UnionFind → ℕ
