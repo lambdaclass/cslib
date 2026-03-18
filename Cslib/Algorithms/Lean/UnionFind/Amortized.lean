@@ -1426,24 +1426,15 @@ theorem amortized_union (uf : UnionFind) (x y : ℕ)
   · split
     · rename_i hx hy
       simp only
-      -- cost = pathLength x + pathLength y + 1
-      -- Φ(union) ≤ Φ(uf) + Φ_node_le (new non-root)
-      -- pathLength ≤ log(n) from RankBound
       have hplx := pathLength_le_log_size uf x hrb
       have hply := pathLength_le_log_size uf y hrb
-      -- Φ(union) ≤ Φ(uf) + (α+1)*n
-      -- This uses: Φ decreases during finds,
-      -- link adds one non-root with bounded potential
       have hΦ := Φ_union_le uf ⟨x, hx⟩ ⟨y, hy⟩ hrb
-      -- pathLength x + pathLength y + 1 + Φ(union)
-      -- ≤ log(n) + log(n) + 1 + (Φ(uf) + (α+1)*log(n))
-      -- = (α+3)*log(n) + 1 + Φ(uf)
       calc pathLength uf x + pathLength uf y + 1 +
             Φ (uf.union ⟨x, hx⟩ ⟨y, hy⟩)
-          ≤ Nat.log 2 uf.size + Nat.log 2 uf.size + 1 +
-            (Φ uf + (invAck uf.size + 1) *
-              (Nat.log 2 uf.size + 1)) := by
-            exact Nat.add_le_add
+          ≤ Nat.log 2 uf.size + Nat.log 2 uf.size +
+            1 + (Φ uf + (invAck uf.size + 1) *
+              (Nat.log 2 uf.size + 1)) :=
+            Nat.add_le_add
               (Nat.add_le_add
                 (Nat.add_le_add hplx hply)
                 (Nat.le_refl _))
@@ -1498,6 +1489,459 @@ theorem total_bound
 /-- Empty union-find has zero potential. -/
 theorem Φ_empty : Φ UnionFind.empty = 0 := by
   simp [Φ]
+
+/-! ### Tarjan potential for O(α(n)) per union -/
+
+/-- The Tarjan per-node potential: `α(n) - level(x)` for
+non-root nodes with rank ≥ 1, and 0 otherwise.
+`level(x) = invAck₂(rank(x), rank(parent(x))+1) - 1`. -/
+def Ψ_node (n : ℕ) (rank parentRank : ℕ) : ℕ :=
+  if rank = 0 then 0
+  else invAck n - (invAck₂ rank (parentRank + 1) - 1)
+
+/-- Ψ_node is bounded by α(n). -/
+private theorem Ψ_node_le (n rank parentRank : ℕ) :
+    Ψ_node n rank parentRank ≤ invAck n := by
+  unfold Ψ_node; split
+  · exact Nat.zero_le _
+  · omega
+
+/-- Ψ_node is monotone decreasing in parentRank. -/
+private theorem Ψ_node_mono {n r pr₁ pr₂ : ℕ}
+    (h : pr₁ ≤ pr₂) :
+    Ψ_node n r pr₂ ≤ Ψ_node n r pr₁ := by
+  unfold Ψ_node; split
+  · exact Nat.zero_le _
+  · -- invAck₂ is monotone in second arg
+    -- pr₁ ≤ pr₂ → pr₁+1 ≤ pr₂+1
+    -- → invAck₂(r, pr₁+1) ≤ invAck₂(r, pr₂+1)
+    -- → invAck₂(r, pr₂+1)-1 ≥ invAck₂(r, pr₁+1)-1
+    -- → α - (invAck₂(r, pr₂+1)-1) ≤ α - (invAck₂(r, pr₁+1)-1)
+    have := invAck₂_mono_right
+      (show pr₁ + 1 ≤ pr₂ + 1 from by omega)
+      (r := r)
+    omega
+
+/-- The Tarjan overall potential. -/
+def Ψ (uf : UnionFind) : ℕ :=
+  (Finset.range uf.size).sum fun p =>
+    if uf.parent p = p then 0
+    else Ψ_node uf.size (uf.rank p)
+      (uf.rank (uf.parent p))
+
+/-- Ψ decreases during find (same proof as Φ). -/
+private theorem Ψ_findState_le (uf : UnionFind)
+    (x : ℕ) :
+    Ψ (findState uf x) ≤ Ψ uf := by
+  if hx : x < uf.size then
+    simp only [Ψ]
+    have := findState_size uf x
+    rw [this]
+    apply Finset.sum_le_sum; intro i _
+    -- After find: roots stay roots, non-roots have
+    -- parent rank ≥ before → Ψ_node ≤
+    by_cases hroot_before : uf.parent i = i
+    · -- Was root: still root or repointed to root
+      rcases findState_parent_or uf x hx i with
+        ⟨h1, _⟩ | h2
+      · rw [h1, UnionFind.rootD_eq_self.mpr
+            hroot_before]
+        simp
+      · rw [h2, hroot_before]
+        simp
+    · simp only [hroot_before, ite_false]
+      have hne : (findState uf x).parent i ≠ i := by
+        rcases findState_parent_or uf x hx i with
+          ⟨h1, _⟩ | h2
+        · rw [h1]; intro heq
+          have := UnionFind.rootD_eq_self.mp heq
+          exact hroot_before this
+        · rw [h2]; exact hroot_before
+      simp only [hne, ite_false, findState_rank]
+      exact Ψ_node_mono
+        (findState_parent_rank_le uf x i hx)
+  else
+    have : findState uf x = uf := by
+      simp [findState, UnionFind.findD, dif_neg hx]
+    rw [this]
+
+/-- Ψ of link increases by at most α(n). -/
+private theorem Ψ_link_le (self : UnionFind)
+    (x y : Fin self.size)
+    (xroot : self.parent x = x)
+    (yroot : self.parent y = y)
+    (hrank_bound : ∀ i, i < self.size →
+      self.rank i ≤ Nat.log 2 self.size) :
+    Ψ (self.link x y yroot) ≤
+      Ψ self + invAck self.size := by
+  -- Same structure as Φ_link_le but with α bound
+  by_cases hxy : x.1 = y.1
+  · have heq : self.link x y yroot = self := by
+      show ⟨UnionFind.linkAux self.arr x y, _, _⟩ =
+        self
+      simp only [UnionFind.linkAux, hxy, ite_true]
+    rw [heq]; omega
+  · have hsize : (self.link x y yroot).size =
+        self.size := by
+      show (UnionFind.linkAux self.arr x y).size =
+        self.arr.size
+      exact UnionFind.linkAux_size
+    unfold Ψ; rw [hsize]
+    let L := self.link x y yroot
+    set fl := fun p => if L.parent p = p then 0
+      else Ψ_node self.size (L.rank p)
+        (L.rank (L.parent p))
+    set fs := fun p => if self.parent p = p then 0
+      else Ψ_node self.size (self.rank p)
+        (self.rank (self.parent p))
+    by_cases hrank : self.rank y < self.rank x
+    · -- y is the loser
+      have hpl : ∀ i, L.parent i =
+          if (y : ℕ) = i then (x : ℕ)
+          else self.parent i := by
+        intro i; exact UnionFind.parent_link yroot
+          (i := i) ▸ by simp [hxy, hrank]
+      have hfs_y : fs y.1 = 0 := by
+        dsimp only [fs]; simp [yroot]
+      have hrl : ∀ j, L.rank j = self.rank j := by
+        intro j
+        change UnionFind.rankD
+          (UnionFind.linkAux self.arr x y) j =
+          UnionFind.rankD self.arr j
+        have hrank' : self.arr[y.1].rank <
+            self.arr[x.1].rank := by
+          simp only [← UnionFind.rankD_eq y.2,
+            ← UnionFind.rankD_eq x.2]; exact hrank
+        simp only [UnionFind.linkAux,
+          show ¬(x.1 = y.1) from hxy, ite_false,
+          hrank', ite_true]
+        rw [UnionFind.rankD_set]; split
+        · rename_i h; subst h
+          simp [UnionFind.rankD_eq y.2]
+        · rfl
+      have hfl_y : fl y.1 ≤ invAck self.size := by
+        dsimp only [fl]; rw [hpl]
+        simp only [ite_true]
+        rw [if_neg hxy, hrl, hrl]
+        exact Ψ_node_le _ _ _
+      have hpw : ∀ i ∈
+          (Finset.range self.size).erase y.1,
+          fl i ≤ fs i := by
+        intro i hi
+        have hiy : i ≠ y.1 :=
+          Finset.ne_of_mem_erase hi
+        dsimp only [fl, fs]
+        rw [hpl]
+        simp only [show ¬((y : ℕ) = i) from
+          Ne.symm hiy, ite_false]
+        split
+        · exact Nat.zero_le _
+        · rw [hrl, hrl]
+      have hy_mem : y.1 ∈ Finset.range self.size :=
+        Finset.mem_range.mpr y.2
+      calc (Finset.range self.size).sum fl
+          = fl y.1 +
+            ((Finset.range self.size).erase y.1).sum
+              fl := by
+            rw [← Finset.add_sum_erase _ _ hy_mem]
+        _ ≤ invAck self.size +
+            ((Finset.range self.size).erase y.1).sum
+              fs :=
+            Nat.add_le_add hfl_y
+              (Finset.sum_le_sum hpw)
+        _ = invAck self.size +
+            (Finset.range self.size).sum fs := by
+            congr 1
+            exact Finset.sum_erase _ hfs_y
+        _ = (Finset.range self.size).sum fs +
+            invAck self.size := by omega
+    · -- x is the loser
+      push_neg at hrank
+      have hrank' : ¬(self.arr[y.1].rank <
+          self.arr[x.1].rank) := by
+        simp only [← UnionFind.rankD_eq y.2,
+          ← UnionFind.rankD_eq x.2]
+        exact not_lt.mpr hrank
+      have hpl : ∀ i, L.parent i =
+          if (x : ℕ) = i then (y : ℕ)
+          else self.parent i := by
+        intro i; rw [show L = self.link x y yroot
+          from rfl, UnionFind.parent_link]
+        simp [hxy, show ¬(self.rank y < self.rank x)
+          from not_lt.mpr hrank]
+      have hfs_x : fs x.1 = 0 := by
+        dsimp only [fs]; simp [xroot]
+      have hfl_x : fl x.1 ≤ invAck self.size := by
+        dsimp only [fl]; rw [hpl]
+        simp only [ite_true]
+        rw [if_neg (show ¬((y : ℕ) = (x : ℕ)) from
+          fun h => hxy h.symm)]
+        exact Ψ_node_le _ _ _
+      have hpw : ∀ i ∈
+          (Finset.range self.size).erase x.1,
+          fl i ≤ fs i := by
+        intro i hi
+        have hix : i ≠ x.1 :=
+          Finset.ne_of_mem_erase hi
+        dsimp only [fl, fs]
+        rw [hpl]
+        simp only [show ¬((x : ℕ) = i) from
+          Ne.symm hix, ite_false]
+        split
+        · exact Nat.zero_le _
+        · rename_i hnotroot
+          have hiy : i ≠ y.1 := by
+            intro h; subst h; exact hnotroot yroot
+          -- Need L.rank i = self.rank i for i ≠ x, i ≠ y
+          have hri : L.rank i = self.rank i := by
+            change UnionFind.rankD
+              (UnionFind.linkAux self.arr x y) i =
+              UnionFind.rankD self.arr i
+            simp only [UnionFind.linkAux,
+              show ¬(x.1 = y.1) from hxy, ite_false,
+              hrank']
+            split
+            · rw [UnionFind.rankD_set,
+                if_neg (Ne.symm hiy)]
+              rw [UnionFind.rankD_set,
+                if_neg (Ne.symm hix)]
+            · rw [UnionFind.rankD_set,
+                if_neg (Ne.symm hix)]
+          rw [hri]
+          exact Ψ_node_mono (rank_link_ge self x y
+            yroot (self.parent i))
+      have hx_mem : x.1 ∈ Finset.range self.size :=
+        Finset.mem_range.mpr x.2
+      calc (Finset.range self.size).sum fl
+          = fl x.1 +
+            ((Finset.range self.size).erase x.1).sum
+              fl := by
+            rw [← Finset.add_sum_erase _ _ hx_mem]
+        _ ≤ invAck self.size +
+            ((Finset.range self.size).erase x.1).sum
+              fs :=
+            Nat.add_le_add hfl_x
+              (Finset.sum_le_sum hpw)
+        _ = invAck self.size +
+            (Finset.range self.size).sum fs := by
+            congr 1
+            exact Finset.sum_erase _ hfs_x
+        _ = (Finset.range self.size).sum fs +
+            invAck self.size := by omega
+
+/-- Ψ(union) ≤ Ψ(uf) + α(n). -/
+private theorem Ψ_union_le (uf : UnionFind)
+    (x : Fin uf.size) (y : Fin uf.size)
+    (hrb : RankBound uf) :
+    Ψ (uf.union x y) ≤
+      Ψ uf + invAck uf.size := by
+  set self₁ := (uf.find x).1 with hself₁_def
+  have hsize₁ : self₁.size = uf.size :=
+    UnionFind.find_size uf x
+  have hΨ_s1 : Ψ self₁ ≤ Ψ uf := by
+    have : Ψ (findState uf ↑x) ≤ Ψ uf :=
+      Ψ_findState_le uf ↑x
+    simp only [findState, UnionFind.findD,
+      dif_pos x.2] at this; exact this
+  have hy₁ : ↑y < self₁.size := by
+    rw [hsize₁]; exact y.2
+  set self₂ := (self₁.find ⟨↑y, hy₁⟩).1
+  have hΨ_s2 : Ψ self₂ ≤ Ψ self₁ := by
+    have : Ψ (findState self₁ ↑y) ≤ Ψ self₁ :=
+      Ψ_findState_le self₁ ↑y
+    simp only [findState, UnionFind.findD,
+      dif_pos hy₁] at this; exact this
+  have hΨ_s2_uf : Ψ self₂ ≤ Ψ uf :=
+    Nat.le_trans hΨ_s2 hΨ_s1
+  have hsize₂ : self₂.size = uf.size :=
+    (UnionFind.find_size self₁ ⟨↑y, hy₁⟩).trans
+      hsize₁
+  have hrank₂ : ∀ i, self₂.rank i = uf.rank i :=
+    fun i => by
+      have h1 := findState_rank uf ↑x i
+      have h2 := findState_rank self₁ ↑y i
+      simp only [findState, UnionFind.findD,
+        dif_pos x.2] at h1
+      simp only [findState, UnionFind.findD,
+        dif_pos hy₁] at h2
+      exact h2.trans h1
+  have hrl₂ : ∀ i, i < self₂.size →
+      self₂.rank i ≤ Nat.log 2 self₂.size := by
+    intro i hi; rw [hrank₂ i, hsize₂]
+    rw [hsize₂] at hi
+    exact rank_le_log_size uf i hi hrb
+  have key : Ψ (uf.union x y) ≤ Ψ self₂ +
+      invAck uf.size := by
+    unfold UnionFind.union; simp only
+    change Ψ (self₂.link _ _ _) ≤ _
+    apply Ψ_link_le self₂ _ _ _ _ hrl₂ |>.trans
+      (by rw [hsize₂])
+    · -- xroot: self₂.parent rx = rx where rx = ↑↑(uf.find x).2
+      have hrx : ↑↑(uf.find x).2 = uf.rootD x :=
+        UnionFind.find_root_2 uf x
+      show self₂.parent _ = _
+      have h1 : self₁.parent (uf.rootD x) =
+          uf.rootD x := by
+        conv_lhs =>
+          rw [show uf.rootD x = self₁.rootD x from
+            (UnionFind.find_root_1 uf x x).symm]
+        rw [UnionFind.parent_rootD]
+        exact UnionFind.find_root_1 uf x x
+      rcases UnionFind.find_parent_or self₁
+        ⟨↑y, hy₁⟩ ↑↑(uf.find x).2
+        with ⟨h2, _⟩ | h2
+      · rw [h2, hrx,
+          UnionFind.rootD_eq_self.mpr h1]
+      · rw [h2, hrx, h1]
+  exact Nat.le_trans key
+    (Nat.add_le_add_right hΨ_s2_uf _)
+
+/-- Ψ decomposition through find path (same structure
+as Φ_findState_decomp). -/
+private theorem Ψ_findState_decomp
+    (uf : UnionFind) (x : ℕ) (hx : x < uf.size)
+    (hne : uf.parent x ≠ x) :
+    Ψ (findState uf (uf.parent x)) +
+      Ψ_node uf.size (uf.rank x)
+        (uf.rank ((findState uf x).parent x)) =
+    Ψ (findState uf x) +
+      Ψ_node uf.size (uf.rank x)
+        (uf.rank (uf.parent x)) := by
+  simp only [Ψ]
+  rw [findState_size, findState_size]
+  have hx_mem : x ∈ Finset.range uf.size :=
+    Finset.mem_range.mpr hx
+  rw [← Finset.add_sum_erase _ _ hx_mem,
+    ← Finset.add_sum_erase _ _ hx_mem]
+  have hne_fp :
+      ¬(findState uf (uf.parent x)).parent x = x := by
+    rw [findState_parent_unchanged uf x hx hne]
+    exact hne
+  have hne_fx : ¬(findState uf x).parent x = x := by
+    rw [findState_parent_x_eq uf x hx]
+    exact fun h => hne (UnionFind.rootD_eq_self.mp h)
+  simp only [if_neg hne_fp, if_neg hne_fx]
+  simp only [findState_rank,
+    findState_parent_unchanged uf x hx hne]
+  have herase : ∀ i ∈
+      (Finset.range uf.size).erase x,
+      ((if (findState uf (uf.parent x)).parent i = i
+       then 0
+       else Ψ_node uf.size (uf.rank i)
+         (uf.rank ((findState uf (uf.parent x)).parent
+           i))) : ℕ) =
+      (if (findState uf x).parent i = i then 0
+       else Ψ_node uf.size (uf.rank i)
+         (uf.rank ((findState uf x).parent i))) := by
+    intro i hi
+    have hix : i ≠ x := Finset.ne_of_mem_erase hi
+    rw [findState_parent_ne_eq uf x hx hne i hix]
+  rw [Finset.sum_congr rfl herase]
+  omega
+
+/-- Count of non-paying nodes for Ψ potential. -/
+private def nonpayingΨ (uf : UnionFind) (x : ℕ) : ℕ :=
+  if h : uf.parent x = x then 0
+  else
+    have := Nat.sub_lt_sub_left
+      (uf.lt_rankMax x) (uf.rank_lt h)
+    let d := Ψ_node uf.size (uf.rank x)
+      (uf.rank (uf.parent x)) -
+      Ψ_node uf.size (uf.rank x)
+      (uf.rank (uf.rootD x))
+    (if d = 0 then 1 else 0) +
+      nonpayingΨ uf (uf.parent x)
+termination_by uf.rankMax - uf.rank x
+
+/-- pathLength + Ψ_after ≤ nonpayingΨ + Ψ_before. -/
+private theorem pathLength_le_nonpayingΨ_add_Ψ_drop
+    (uf : UnionFind) (x : ℕ) (hx : x < uf.size) :
+    pathLength uf x + Ψ (findState uf x) ≤
+      nonpayingΨ uf x + Ψ uf := by
+  if hroot : uf.parent x = x then
+    have hpl : pathLength uf x = 0 := by
+      rw [pathLength, dif_pos hroot]
+    have hnp : nonpayingΨ uf x = 0 := by
+      rw [nonpayingΨ, dif_pos hroot]
+    rw [hpl, hnp]
+    exact Nat.add_le_add_left
+      (Ψ_findState_le uf x) 0
+  else
+    have hdec := Nat.sub_lt_sub_left
+      (uf.lt_rankMax x) (uf.rank_lt hroot)
+    have hp_lt : uf.parent x < uf.size :=
+      (uf.parent_lt x).mpr hx
+    have ih := pathLength_le_nonpayingΨ_add_Ψ_drop uf
+      (uf.parent x) hp_lt
+    have hdecomp := Ψ_findState_decomp uf x hx hroot
+    rw [findState_parent_x_eq uf x hx] at hdecomp
+    have hΨ_mono : Ψ_node uf.size (uf.rank x)
+        (uf.rank (uf.rootD x)) ≤
+        Ψ_node uf.size (uf.rank x)
+        (uf.rank (uf.parent x)) := Ψ_node_mono
+      (Nat.le_trans UnionFind.le_rank_root
+        (by rw [UnionFind.rootD_parent]))
+    have ih' : pathLength uf (uf.parent x) +
+        Ψ (findState uf x) +
+        (Ψ_node uf.size (uf.rank x)
+          (uf.rank (uf.parent x)) -
+         Ψ_node uf.size (uf.rank x)
+          (uf.rank (uf.rootD x))) ≤
+        nonpayingΨ uf (uf.parent x) + Ψ uf := by
+      omega
+    clear ih hdecomp
+    rw [pathLength, dif_neg hroot,
+      nonpayingΨ, dif_neg hroot]
+    set d := Ψ_node uf.size (uf.rank x)
+      (uf.rank (uf.parent x)) -
+      Ψ_node uf.size (uf.rank x)
+      (uf.rank (uf.rootD x))
+    if hd : d = 0 then
+      simp only [hd, ite_true]; omega
+    else
+      simp only [hd, ite_false]
+      have : d ≥ 1 := Nat.one_le_iff_ne_zero.mpr hd
+      omega
+  termination_by uf.rankMax - uf.rank x
+
+/-- nonpayingΨ ≤ pathLength. -/
+private theorem nonpayingΨ_le_pathLength
+    (uf : UnionFind) (x : ℕ) :
+    nonpayingΨ uf x ≤ pathLength uf x := by
+  rw [nonpayingΨ, pathLength]
+  split
+  · exact Nat.le_refl _
+  · rename_i h
+    have hdec := Nat.sub_lt_sub_left
+      (uf.lt_rankMax x) (uf.rank_lt h)
+    have ih := nonpayingΨ_le_pathLength uf
+      (uf.parent x)
+    simp only; split <;> omega
+  termination_by uf.rankMax - uf.rank x
+
+/-- Worst-case cost of a single find is O(log n).
+This is the non-amortized per-operation bound. -/
+theorem find_worst_case (uf : UnionFind) (x : ℕ)
+    (hrb : RankBound uf) :
+    (findOp x uf).2 ≤ Nat.log 2 uf.size :=
+  pathLength_le_log_size uf x hrb
+
+/-- Worst-case cost of a single union is O(log n).
+The cost is two find paths plus the constant-time link. -/
+theorem union_worst_case (uf : UnionFind) (x y : ℕ)
+    (hrb : RankBound uf) :
+    (unionOp x y uf).2 ≤
+      2 * Nat.log 2 uf.size + 1 := by
+  simp only [unionOp]
+  split
+  · split
+    · rename_i hx hy
+      simp only
+      have hplx := pathLength_le_log_size uf x hrb
+      have hply := pathLength_le_log_size uf y hrb
+      omega
+    · simp
+  · simp
 
 end Cslib.Algorithms.Lean.UnionFind
 
