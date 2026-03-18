@@ -1919,6 +1919,7 @@ private theorem nonpayingΨ_le_pathLength
     simp only; split <;> omega
   termination_by uf.rankMax - uf.rank x
 
+
 /-- Worst-case cost of a single find is O(log n).
 This is the non-amortized per-operation bound. -/
 theorem find_worst_case (uf : UnionFind) (x : ℕ)
