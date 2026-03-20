@@ -232,7 +232,7 @@ private theorem findState_parent_x_eq
 agree on i's parent. -/
 private theorem findState_parent_ne_eq
     (uf : UnionFind) (x : ℕ) (hx : x < uf.size)
-    (hne : uf.parent x ≠ x) (i : ℕ) (hix : i ≠ x) :
+    (_hne : uf.parent x ≠ x) (i : ℕ) (hix : i ≠ x) :
     (findState uf x).parent i =
       (findState uf (uf.parent x)).parent i := by
   have hpx : uf.parent x < uf.size :=
@@ -417,14 +417,14 @@ private def nodeLevel (uf : UnionFind) (x : ℕ) : ℕ :=
 private theorem nonpaying_distinct_levels
     (uf : UnionFind) (i j : ℕ)
     (hi : i < uf.size)
-    (hlt : uf.rank i < uf.rank j)
+    (_hlt : uf.rank i < uf.rank j)
     (hni : uf.parent i ≠ i)
     (hnj : uf.parent j ≠ j)
     (hi_np : Φ_node uf.size (uf.rank i)
       (uf.rank (uf.parent i)) =
       Φ_node uf.size (uf.rank i)
       (uf.rank (uf.rootD i)))
-    (hj_np : Φ_node uf.size (uf.rank j)
+    (_hj_np : Φ_node uf.size (uf.rank j)
       (uf.rank (uf.parent j)) =
       Φ_node uf.size (uf.rank j)
       (uf.rank (uf.rootD j)))
@@ -442,7 +442,7 @@ private theorem nonpaying_distinct_levels
     -- < parentRank i + 1
     -- So invAck₂(rank i, parentRank i + 1) > 0
     have : ack 0 (uf.rank i) < uf.rank (uf.parent i) + 1 := by
-      simp [ack_zero]
+      simp only [ack_zero, add_lt_add_iff_right]
       exact uf.rank_lt hni
     have h0 := invAck₂_le_of_ack_ge
       (show ack 0 (uf.rank i) ≥ uf.rank i + 1 by
@@ -468,7 +468,7 @@ private theorem nonpaying_distinct_levels
       (uf.rank (uf.parent j) + 1) > 0 := by
     have : ack 0 (uf.rank j) <
         uf.rank (uf.parent j) + 1 := by
-      simp [ack_zero]; exact uf.rank_lt hnj
+      simp only [ack_zero, add_lt_add_iff_right]; exact uf.rank_lt hnj
     by_contra h; push_neg at h
     have h1 := ack_invAck₂_ge (uf.rank j)
       (uf.rank (uf.parent j) + 1)
@@ -484,29 +484,12 @@ private theorem nonpaying_distinct_levels
     exact Nat.le_of_lt_succ
       (@ack_pred_invAck₂_lt (uf.rank j)
         (uf.rank (uf.parent j) + 1) h_invack_j)
-  -- Step 2: chain
-  -- rank(j) ≥ rank(parent(i))
-  -- ack(k, rank(j)) ≥ ack(k, rank(parent(i)))
-  --   ≥ ack(k, ack(k, rank(i)))  [since rank(parent(i)) ≥ ack(k, rank(i))]
-  --   wait, we have ack(k,rank(i)) ≤ parent(i), not ≥
-  -- Actually: rank(parent(i)) ≥ ack(k, rank(i)) from hk_i
-  -- So ack(k, rank(parent(i))) ≥ ack(k, ack(k, rank(i)))
-  -- Wait no: ack is monotone, and rank(parent(i)) ≥ ack(k, rank(i))
-  -- gives ack(k, rank(parent(i))) ≥ ack(k, ack(k, rank(i))) ✓
-  -- But we need ack(k, rank(j)) ≥ ... and rank(j) ≥ rank(parent(i))
+  -- Step 2: chain R ≥ pj ≥ ack(k,rj) ≥ ackIter(k,ℓ+1,ri)
   have hpj_le_R : uf.rank (uf.parent j) ≤
       uf.rank (uf.rootD i) := by
     rw [hcomp]
     exact Nat.le_trans UnionFind.le_rank_root
       (by rw [UnionFind.rootD_parent])
-  -- Key chain: R ≥ pj ≥ ack(k, rj) ≥ ack(k, pi)
-  -- where pi ≥ ack(k, ri) from hk_i
-  -- and rj ≥ pi from hpi_le_j
-  -- So ack(k, rj) ≥ ack(k, pi) (ack monotone, rj ≥ pi)
-  -- But more importantly:
-  -- ack(k, pi) ≥ ack(k, ackIter(k, ℓ, ri)) = ackIter(k, ℓ+1, ri)
-  -- where ℓ = iterCount(k, ri, pi)
-  -- And R ≥ pj ≥ ack(k, rj) ≥ ack(k, pi) ≥ ackIter(k, ℓ+1, ri)
   set ℓ := @Cslib.Algorithms.Lean.UnionFind.iterCount
     k (uf.rank i) (uf.rank (uf.parent i))
   have hℓ_le : ackIter k ℓ (uf.rank i) ≤
@@ -518,9 +501,6 @@ private theorem nonpaying_distinct_levels
       uf.rank (uf.parent i) :=
     @ackIter_iterCount_gt k (uf.rank i)
       (uf.rank (uf.parent i))
-  -- hℓ_le: ackIter(k, ℓ, ri) ≤ pi
-  -- hℓ_gt: ackIter(k, ℓ+1, ri) > pi
-  -- Chain: R ≥ ack(k, rj) ≥ ack(k, pi) ≥ ackIter(k, ℓ+1, ri)
   have hchain : uf.rank (uf.rootD i) ≥
       ackIter k (ℓ + 1) (uf.rank i) := by
     calc uf.rank (uf.rootD i)
@@ -532,94 +512,25 @@ private theorem nonpaying_distinct_levels
           ack_le_ack (le_refl _) hℓ_le
       _ = ackIter k (ℓ + 1) (uf.rank i) := by
           rw [ackIter_succ]
-  -- Step 3: indicator(k, ℓ) was 1 with pi, 0 with R
-  -- The key: Φ_node(pi) > Φ_node(R) because one indicator
-  -- flips from 1 to 0 and no indicator flips 0→1.
-  -- indicator(k, ℓ, ri, pi) = 1 (from hℓ_gt):
+  -- Step 3: indicator(k,ℓ) flips from 1→0, giving Φ_node(pi) > Φ_node(R)
   have hind1 : indicator k ℓ (uf.rank i)
       (uf.rank (uf.parent i)) = 1 := by
     unfold indicator; rw [if_pos hℓ_gt]
-  -- indicator(k, ℓ, ri, R) = 0 (from hchain):
   have hind0 : indicator k ℓ (uf.rank i)
       (uf.rank (uf.rootD i)) = 0 := by
     unfold indicator; rw [if_neg (by omega)]
-  -- The Φ_node sums differ at (k, ℓ) by 1.
-  -- Φ_node(pi) = Σ_{k',ℓ'} indicator(k',ℓ',ri,pi)
-  --            ≥ indicator(k,ℓ,ri,pi) + Σ_{≠(k,ℓ)} indicator(k',ℓ',ri,pi)
-  -- Φ_node(R) = Σ_{k',ℓ'} indicator(k',ℓ',ri,R)
-  --           = indicator(k,ℓ,ri,R) + Σ_{≠(k,ℓ)} indicator(k',ℓ',ri,R)
-  -- For (k',ℓ') ≠ (k,ℓ): indicator(k',ℓ',ri,pi) ≥ indicator(k',ℓ',ri,R)
-  --   (by Φ_node_mono)
-  -- So Φ_node(pi) ≥ 1 + 0 + Σ indicator(R) = 1 + Φ_node(R) - 0
-  -- Therefore Φ_node(pi) > Φ_node(R), contradicting hi_np.
-  --
-  -- We prove: Φ_node(pi) ≥ Φ_node(R) + 1
-  -- by: Φ_node(pi) ≥ Φ_node(R) + (ind(pi) - ind(R))
-  --                  = Φ_node(R) + 1
-  -- This needs Finset sum decomposition.
-  -- Simpler: just show hi_np implies ind(k,ℓ,pi) = ind(k,ℓ,R)
-  -- from the equality of Finset sums with pointwise ≥.
-  -- If f ≥ g pointwise and Σf = Σg, then f = g pointwise.
-  -- So indicator(k,ℓ,ri,pi) = indicator(k,ℓ,ri,R).
-  -- But we showed 1 = 0. Contradiction.
+  -- Pointwise ind(R) ≤ ind(pi) and Σ equal (hi_np) → all equal.
+  -- But ind(k,ℓ) differs: 1 vs 0. Contradiction via Finset.sum_lt_sum.
   have hpi_le_R : uf.rank (uf.parent i) ≤
       uf.rank (uf.rootD i) :=
     Nat.le_trans UnionFind.le_rank_root
       (by rw [UnionFind.rootD_parent])
-  -- Pointwise: indicator(k',ℓ',ri,pi) ≥ indicator(k',ℓ',ri,R)
   have hpw : ∀ k' ℓ', indicator k' ℓ' (uf.rank i)
       (uf.rank (uf.rootD i)) ≤
       indicator k' ℓ' (uf.rank i)
       (uf.rank (uf.parent i)) := by
     intro k' ℓ'
     unfold indicator; split <;> split <;> omega
-  -- From hi_np (sum equality) and hpw (pointwise ≥):
-  -- each term must be equal. In particular at (k, ℓ).
-  -- Φ_node is a double Finset.sum, so we need
-  -- the "sum_eq_of_le" lemma.
-  -- Σ f ≤ Σ g (from hpw) and Σ f = Σ g (from hi_np)
-  -- ⟹ f = g for each term in the sum.
-  -- From hi_np (equality) and hpw (pointwise ≥):
-  -- Each indicator at (k',ℓ') must be equal.
-  -- In particular indicator(k,ℓ,ri,pi) = indicator(k,ℓ,ri,R).
-  -- But hind1 = 1 and hind0 = 0. Contradiction.
-  -- Proof: hi_np and Φ_node_mono give
-  -- Φ_node(R) ≤ Φ_node(pi) = Φ_node(R), so equal.
-  -- Then the difference of each inner sum is 0.
-  -- In the inner sum at level k, the difference at
-  -- position ℓ is indicator(pi) - indicator(R) = 1 - 0 = 1.
-  -- But the total inner sum difference is 0.
-  -- Since all terms ≥ 0, contradiction.
-  -- Use: Φ_node = Σ_k Σ_ℓ indicator(k,ℓ,...)
-  -- The indicator at (k,ℓ) differs by 1.
-  -- All other indicators differ by ≥ 0 (from hpw).
-  -- Sum of all differences = Φ_node(pi) - Φ_node(R) = 0.
-  -- But sum ≥ 1 (the one differing term contributes 1).
-  -- Contradiction: 1 ≤ 0.
-  -- Formally:
-  -- From hpw and hind1/hind0:
-  -- Φ_node(pi) ≥ Φ_node(R) + 1.
-  -- Use Finset.sum_lt_sum_of_nonempty.
-  -- Actually, just compute:
-  -- Φ_node(pi) = Σ_k' Σ_ℓ' ind(pi)
-  -- Φ_node(R) = Σ_k' Σ_ℓ' ind(R)
-  -- Φ_node(pi) - Φ_node(R) = Σ_k' Σ_ℓ' (ind(pi) - ind(R))
-  -- ≥ ind(k,ℓ,pi) - ind(k,ℓ,R) = 1 - 0 = 1
-  -- (since all other terms ≥ 0)
-  -- So Φ_node(pi) ≥ Φ_node(R) + 1. Contradiction with hi_np.
-  -- Formal: use Finset.sum_le_sum on the difference.
-  -- But we need the 1 to appear. Let me use Nat.sum_sub_le.
-  -- Actually simpler: just contrapose.
-  -- hi_np says equal. hpw says ≥. hind1/hind0 say one term differs.
-  -- So ∃ term where f > g, and ∀ terms f ≥ g, and Σf = Σg.
-  -- This is impossible.
-  -- Use `Finset.sum_lt_sum` or just `Nat.lt_irrefl`.
-  -- Finset.sum_lt_sum says: if ∀ i ∈ s, f i ≤ g i AND
-  -- ∃ i ∈ s, f i < g i, then Σf < Σg.
-  -- Here f = ind(R), g = ind(pi). ∀ f ≤ g (hpw).
-  -- ∃ f < g at (k,ℓ): ind(R) = 0 < 1 = ind(pi).
-  -- So Σ ind(R) < Σ ind(pi), i.e., Φ_node(R) < Φ_node(pi).
-  -- But hi_np says Φ_node(pi) = Φ_node(R). Contradiction.
   have hstrict : Φ_node uf.size (uf.rank i)
       (uf.rank (uf.rootD i)) <
     Φ_node uf.size (uf.rank i)
@@ -631,14 +542,6 @@ private theorem nonpaying_distinct_levels
       intro ℓ' _
       exact hpw k' ℓ'
     · have hpi_lt := (UnionFind.parent_lt uf i).mpr hi
-      have hpi_lt_size : uf.rank (uf.parent i) < uf.size :=
-        Nat.lt_of_le_of_lt
-          (rank_le_log_size uf _ hpi_lt hrb)
-          (Nat.log_lt_self 2 (by omega))
-      -- Use k+1 as witness. k+1 < invAck(n)+1 because
-      -- k < invAck(n) (from RankBound: ack(invAck(n), ri) ≥ n > pi
-      -- contradicts hk_i if k = invAck(n)).
-      have hpi_lt := (UnionFind.parent_lt uf i).mpr hi
       have hpi_lt_size : uf.rank (uf.parent i) < uf.size :=
         Nat.lt_of_le_of_lt
           (rank_le_log_size uf _ hpi_lt hrb)
@@ -657,56 +560,29 @@ private theorem nonpaying_distinct_levels
           _ ≤ invAck₂ 1 uf.size :=
               invAck₂_mono_right (by omega)
           _ = invAck uf.size := rfl
-      -- Use (k, iterCount) as witness. iterCount ≤ rank
-      -- because nodeLevel = k means ack(k+1, ri) > pi,
-      -- and ack(k+1, ri) = ackIter(k, ri+1, 1)
-      -- (from Ackermann recursion). Since
-      -- ackIter(k, ri+1, ri) ≥ ackIter(k, ri+1, 1)
-      -- (mono in base) > pi, iterCount ≤ ri = rank.
       have hℓ_le_rank : ℓ ≤ uf.rank i := by
-        -- ackIter(k, ri+1, ri) > pi →
-        -- iterCount(k, ri, pi) ≤ ri.
-        -- Proof: if iterCount > ri, then
-        -- ackIter(k, ri+1, ri) ≤ pi (from iterCount def)
-        -- But ackIter(k, ri+1, ri) > pi. Contradiction.
         by_contra h; push_neg at h
         have h1 : uf.rank i + 1 ≤ ℓ := h
         have h2 := @ackIter_iterCount_le k (uf.rank i)
           (uf.rank (uf.parent i))
           (Nat.le_of_lt (uf.rank_lt hni))
-        -- h2: ackIter(k, ℓ, ri) ≤ pi
-        -- ackIter(k, ri+1, ri) ≤ ackIter(k, ℓ, ri) ≤ pi
-        --   (since ri+1 ≤ ℓ and ackIter mono in iterations)
         have h3 := @ackIter_mono_right k (uf.rank i + 1) ℓ
           (uf.rank i) h1
-        -- h3: ackIter(k, ri+1, ri) ≤ ackIter(k, ℓ, ri) ≤ pi
         have h4 : ackIter k (uf.rank i + 1) (uf.rank i) ≤
             uf.rank (uf.parent i) := Nat.le_trans h3 h2
-        -- But ack(k+1, ri) > pi (from nodeLevel definition)
         have h5 : ack (k + 1) (uf.rank i) >
             uf.rank (uf.parent i) := by
           have h5a := ack_invAck₂_ge (uf.rank i)
             (uf.rank (uf.parent i) + 1)
           have h5b : k + 1 = invAck₂ (uf.rank i)
               (uf.rank (uf.parent i) + 1) := by
-            show invAck₂ (uf.rank i)
+            change invAck₂ (uf.rank i)
               (uf.rank (uf.parent i) + 1) - 1 + 1 = _
             omega
           rw [h5b]; omega
-        -- And ack(k+1, ri) ≤ ackIter(k, ri+1, ri)?
-        -- ack(k+1, ri) = ack(k, ack(k+1, ri-1))
-        -- ackIter(k, ri+1, ri) = ack(k)^{ri+1}(ri)
-        -- By ack_succ_right_le_ack_succ_left:
-        -- ack(k, ri+1) ≤ ack(k+1, ri) for any k, ri.
-        -- Hmm wrong direction.
-        -- Actually: ack(k+1, n) ≤ ackIter(k, n+1, 1)
-        -- (standard: ack(k+1, n) = ack(k)^{n+1}(1))
-        -- And ackIter(k, n+1, ri) ≥ ackIter(k, n+1, 1)
-        -- when ri ≥ 1 (monotone in base).
-        -- ack(k+1, ri) = ackIter(k, ri+1, 1) ≤ ackIter(k, ri+1, ri)
+        -- ack(k+1,ri) = ackIter(k,ri+1,1) ≤ ackIter(k,ri+1,ri)
         have h6 : ack (k + 1) (uf.rank i) ≤
             ackIter k (uf.rank i + 1) (uf.rank i) := by
-          -- ack(k+1, n) = ackIter(k, n+1, 1) by induction
           have hase : ack (k + 1) (uf.rank i) =
               ackIter k (uf.rank i + 1) 1 := by
             induction uf.rank i with
@@ -778,7 +654,7 @@ private theorem nonpaying_le_npLevels
       omega
     else
       have : ¬(d = 0 ∧ uf.rank x ≥ 1) := by omega
-      simp only [hd, this, ite_false, false_and,
+      simp only [hd, ite_false, false_and,
         List.nil_append, Nat.zero_add]
       exact ih
   termination_by uf.rankMax - uf.rank x
@@ -812,11 +688,10 @@ private theorem nonpaying_le_npLevels_plus_one
         omega
     else
       have : ¬(d = 0 ∧ uf.rank x ≥ 1) := by omega
-      simp only [hd, this, ite_false, false_and,
+      simp only [hd, ite_false, false_and,
         List.nil_append, Nat.zero_add]
       rw [nonpaying_le_npLevels uf _ hparent_rank]
       omega
-  termination_by uf.rankMax - uf.rank x
 
 /-- If l ∈ npLevels, there's a node on the path with
 that level, rank ≥ 1, non-paying, and rank > rank(x)-1. -/
@@ -839,7 +714,8 @@ private theorem npLevels_mem
       (uf.lt_rankMax x) (uf.rank_lt h)
     rw [List.mem_append] at hl
     rcases hl with hl1 | hl2
-    · split at hl1 <;> simp at hl1
+    · split at hl1 <;> simp only [List.mem_singleton,
+          List.not_mem_nil] at hl1
       rename_i hcond
       subst hl1
       exact ⟨x, hcond.2, h, rfl, le_refl _, rfl, by
@@ -922,7 +798,8 @@ private theorem npLevels_bound
     simp only [List.mem_append] at hl
     rcases hl with hl1 | hl2
     · -- l is from the current node's [nodeLevel] or []
-      split at hl1 <;> simp at hl1
+      split at hl1 <;> simp only [List.mem_singleton,
+          List.not_mem_nil] at hl1
       rename_i h1
       obtain ⟨_, hri⟩ := h1
       subst hl1
@@ -1004,7 +881,7 @@ private theorem rank_link_ge (self : UnionFind)
     (x y : Fin self.size) (yroot : self.parent y = y)
     (i : ℕ) :
     self.rank i ≤ (self.link x y yroot).rank i := by
-  show UnionFind.rankD self.arr i ≤
+  change UnionFind.rankD self.arr i ≤
     UnionFind.rankD (UnionFind.linkAux self.arr x y) i
   simp only [UnionFind.linkAux]
   split
@@ -1044,13 +921,13 @@ private theorem Φ_link_le (self : UnionFind)
   -- If x = y, link is identity
   by_cases hxy : x.1 = y.1
   · have heq : self.link x y yroot = self := by
-      show ⟨UnionFind.linkAux self.arr x y, _, _⟩ = self
+      change ⟨UnionFind.linkAux self.arr x y, _, _⟩ = self
       simp only [UnionFind.linkAux, hxy, ite_true]
     rw [heq]; omega
   · -- x ≠ y: exactly one node becomes non-root
     have hsize : (self.link x y yroot).size =
         self.size := by
-      show (UnionFind.linkAux self.arr x y).size =
+      change (UnionFind.linkAux self.arr x y).size =
         self.arr.size
       exact UnionFind.linkAux_size
     -- Unfold Φ for both sides and align ranges
@@ -1076,7 +953,7 @@ private theorem Φ_link_le (self : UnionFind)
       -- In the y-is-loser case, ranks unchanged for all
       have hrl : ∀ j, L.rank j = self.rank j := by
         intro j
-        show UnionFind.rankD
+        change UnionFind.rankD
           (UnionFind.linkAux self.arr x y) j =
           UnionFind.rankD self.arr j
         have hrank' : self.arr[y.1].rank <
@@ -1153,7 +1030,7 @@ private theorem Φ_link_le (self : UnionFind)
       have hrl_ne : ∀ j, j ≠ x.1 → j ≠ y.1 →
           L.rank j = self.rank j := by
         intro j hjx hjy
-        show UnionFind.rankD
+        change UnionFind.rankD
           (UnionFind.linkAux self.arr x y) j =
           UnionFind.rankD self.arr j
         simp only [UnionFind.linkAux,
@@ -1171,13 +1048,12 @@ private theorem Φ_link_le (self : UnionFind)
             (Nat.log 2 self.size + 1) := by
         dsimp only [fl]
         rw [hpl]
-        simp only [show (x : ℕ) = x.1 from rfl,
-          ite_true]
+        simp only [ite_true]
         rw [if_neg (show ¬((y : ℕ) = (x : ℕ)) from
           fun h => hxy h.symm)]
         -- L.rank x = self.rank x (loser's rank unchanged)
         have hrl_x : L.rank x.1 = self.rank x.1 := by
-          show UnionFind.rankD
+          change UnionFind.rankD
             (UnionFind.linkAux self.arr x y) x.1 =
             UnionFind.rankD self.arr x.1
           simp only [UnionFind.linkAux,
@@ -1282,11 +1158,10 @@ private theorem Φ_union_le (uf : UnionFind)
   -- This IS definitionally equal when x < size.
   have hΦ_finds : Φ (findState (findState uf ↑x) ↑y) ≤ Φ uf :=
     Nat.le_trans (Φ_findState_le _ _) (Φ_findState_le _ _)
-  -- Now: uf.union x y uses find internally, producing self₂ = findState(findState uf x, y)... approximately.
-  -- The exact relationship: uf.union's internal self₁ = (uf.find x).1.
+  -- Now: uf.union x y uses find internally, producing self₂ = findState(findState uf x, y)
+  -- approximately. The exact relationship: uf.union's internal self₁ = (uf.find x).1.
   -- And findState uf x = (uf.findD x).1 = (uf.find ⟨x, x.2⟩).1 when x < size.
-  -- So self₁ = findState uf x.
-  -- Similarly, self₂ = findState self₁ y.
+  -- So self₁ = findState uf x. Similarly, self₂ = findState self₁ y.
   -- And uf.union = self₂.link ...
   -- The Φ of the link result differs from Φ(self₂) by one node's Φ_node.
   -- For the bound: Φ(union) ≤ Φ(self₂) + max_Φ_node_of_new_nonroot.
@@ -1317,38 +1192,7 @@ private theorem Φ_union_le (uf : UnionFind)
     exact this
   have hΦ_s2_uf : Φ self₂ ≤ Φ uf := Nat.le_trans hΦ_s2 hΦ_s1
   -- Φ(union) = Φ(self₂.link ...). Bound Φ(link) via
-  -- Φ(link) ≤ Φ(self₂) + (α+1)*(log(n)+1).
-  -- Since Φ(self₂) ≤ Φ(uf): done.
-  -- Use crude bound: Φ(union) ≤ n*(α+1)*(log(n)+1) and
-  -- Φ(uf) ≥ 0. But n * ... > Φ(uf) + ... in general. FAILS.
-  -- Use structural: Φ(link) = Φ(self₂) + new_node_potential.
-  -- new_node_potential ≤ (α+1)*(log(n)+1).
-  -- The link result = self₂.link rx ry where rx, ry are roots.
-  -- Φ sums over all nodes. In link result vs self₂:
-  -- - One root becomes non-root (Φ_node goes from 0 to ≤ (α+1)*(rank+1))
-  -- - All other nodes: parent unchanged by parent_link for i ≠ linked root
-  -- Since uf.union = self₂.link ... and we have self₂:
-  -- relate uf.union to self₂ by rewriting.
-  -- uf.union x y = self₂.link ⟨rx, _⟩ ry _ (from the unfolded definition).
-  -- Prove Φ(self₂.link ...) ≤ Φ(self₂) + (α+1)*(log(n)+1).
-  -- Then Φ(union) = Φ(self₂.link ...) ≤ Φ(uf) + (α+1)*(log(n)+1).
-  -- For the Φ(link) bound: each node's contribution in link result
-  -- is ≤ its contribution in self₂ (parent unchanged for i ≠ linked root)
-  -- plus the new non-root's Φ_node ≤ (α+1)*(rank+1) ≤ (α+1)*(log(n)+1).
-  -- Sum: Φ(link) ≤ Φ(self₂) + (α+1)*(log(n)+1) ≤ Φ(uf) + (α+1)*(log(n)+1).
-  -- Bound Φ(union) via crude upper bound:
-  -- Φ(union) ≤ n * (α+1) * (log(n)+1) since each non-root
-  -- has Φ_node ≤ (α+1)*(log(n)+1), and there are ≤ n nodes.
-  -- But we need Φ(union) ≤ Φ(uf) + (α+1)*(log(n)+1).
-  -- This follows from Φ_findState_le + Φ_link_le.
-  -- Strategy: work at the Finset sum level directly.
-  -- Φ(union) = Φ(self₂.link ...) has same-sized sum as Φ(self₂)
-  -- plus at most one new non-root's potential.
-  -- Since Φ(self₂) ≤ Φ(uf), the result follows.
-  -- Simplify: just bound Φ(union) ≤ Φ(self₂) + C ≤ Φ(uf) + C
-  -- We proved Φ_link_le for an abstract self with xroot/yroot.
-  -- The issue is connecting uf.union to self₂.link with the
-  -- right arguments. Instead, do the sum argument directly.
+  -- Φ(union) ≤ Φ(self₂) + C ≤ Φ(uf) + C where C = (α+1)*(log n+1)
   have key : Φ (uf.union x y) ≤ Φ self₂ +
       (invAck uf.size + 1) *
         (Nat.log 2 uf.size + 1) := by
@@ -1361,7 +1205,7 @@ private theorem Φ_union_le (uf : UnionFind)
         uf.size := by
       unfold UnionFind.union; simp only
       change (self₂.link _ _ _).size = uf.size
-      show (UnionFind.linkAux self₂.arr _ _).size =
+      change (UnionFind.linkAux self₂.arr _ _).size =
         uf.size
       rw [UnionFind.linkAux_size]; exact hsize₂
     -- rank preserved by find
@@ -1401,7 +1245,7 @@ private theorem Φ_union_le (uf : UnionFind)
       -- rx = ↑↑(uf.find x).2 = uf.rootD x
       have hrx : ↑↑(uf.find x).2 = uf.rootD x :=
         UnionFind.find_root_2 uf x
-      show self₂.parent _ = _
+      change self₂.parent _ = _
       have h1 : self₁.parent (uf.rootD x) =
           uf.rootD x := by
         conv_lhs =>
@@ -1435,8 +1279,8 @@ def totalCost :
   | op :: ops, s =>
     (op s).2 + totalCost ops (op s).1
 
-/-- Telescoping lemma. -/
-theorem telescoping
+/-- Main theorem (telescoping): m operations cost O(m · α(n)). -/
+theorem total_bound
     (ops : List (StatefulOp UnionFind))
     (c : ℕ) (s₀ : UnionFind)
     (h_bound : ∀ op ∈ ops, ∀ s,
@@ -1459,15 +1303,6 @@ theorem telescoping
       _ ≤ (c + Φ s₀) + ops.length * c :=
           Nat.add_le_add_right hop _
       _ = (ops.length + 1) * c + Φ s₀ := by ring
-
-/-- Main theorem: m operations cost O(m · α(n)). -/
-theorem total_bound
-    (ops : List (StatefulOp UnionFind))
-    (c : ℕ) (s₀ : UnionFind)
-    (h_bound : ∀ op ∈ ops, ∀ s,
-      (op s).2 + Φ (op s).1 ≤ c + Φ s) :
-    totalCost ops s₀ ≤ ops.length * c + Φ s₀ :=
-  telescoping ops c s₀ h_bound
 
 /-- Empty union-find has zero potential. -/
 theorem Φ_empty : Φ UnionFind.empty = 0 := by
@@ -1519,6 +1354,15 @@ private theorem geom_floor_sum (K n : ℕ) :
     rw [Finset.sum_congr rfl hconv, Nat.add_comm]
     omega
 
+/-- The rank-count invariant: for each rank level r,
+at most ⌊n/2^r⌋ nodes have rank ≥ r.
+
+This is a property maintained by the standard union-by-rank
+operations but cannot be derived from `RankBound` alone.
+`RankBound` only constrains root ranks via descendant counts;
+`RankCountBound` constrains ALL nodes, which requires the
+historical argument that each rank-r node was once a root
+with 2^r disjoint descendants. -/
 def RankCountBound (uf : UnionFind) : Prop :=
   ∀ r : ℕ, ((Finset.range uf.size).filter
     (fun i => decide (uf.rank i ≥ r) = true)).card
@@ -1781,20 +1625,20 @@ private theorem Ψ_link_le (self : UnionFind)
     (x y : Fin self.size)
     (xroot : self.parent x = x)
     (yroot : self.parent y = y)
-    (hrank_bound : ∀ i, i < self.size →
+    (_hrank_bound : ∀ i, i < self.size →
       self.rank i ≤ Nat.log 2 self.size) :
     Ψ (self.link x y yroot) ≤
       Ψ self + invAck self.size := by
   -- Same structure as Φ_link_le but with α bound
   by_cases hxy : x.1 = y.1
   · have heq : self.link x y yroot = self := by
-      show ⟨UnionFind.linkAux self.arr x y, _, _⟩ =
+      change ⟨UnionFind.linkAux self.arr x y, _, _⟩ =
         self
       simp only [UnionFind.linkAux, hxy, ite_true]
     rw [heq]; omega
   · have hsize : (self.link x y yroot).size =
         self.size := by
-      show (UnionFind.linkAux self.arr x y).size =
+      change (UnionFind.linkAux self.arr x y).size =
         self.arr.size
       exact UnionFind.linkAux_size
     unfold Ψ; rw [hsize]
@@ -1990,7 +1834,7 @@ private theorem Ψ_union_le (uf : UnionFind)
     · -- xroot: self₂.parent rx = rx where rx = ↑↑(uf.find x).2
       have hrx : ↑↑(uf.find x).2 = uf.rootD x :=
         UnionFind.find_root_2 uf x
-      show self₂.parent _ = _
+      change self₂.parent _ = _
       have h1 : self₁.parent (uf.rootD x) =
           uf.rootD x := by
         conv_lhs =>

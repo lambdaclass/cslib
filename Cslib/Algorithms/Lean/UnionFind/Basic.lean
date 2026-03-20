@@ -53,7 +53,7 @@ Defines `pathLength` for `Batteries.UnionFind` and proves the per-call
 
 namespace Cslib.Algorithms.Lean.UnionFind
 
-open Batteries in
+open Batteries
 /-- Number of edges from node `x` to its root.
 Returns 0 if `x` is out of bounds or is a root. -/
 def pathLength (self : UnionFind) (x : ℕ) : ℕ :=
@@ -64,18 +64,18 @@ def pathLength (self : UnionFind) (x : ℕ) : ℕ :=
     1 + pathLength self (self.parent x)
 termination_by self.rankMax - self.rank x
 
-open Batteries in
+
 /-- The set of nodes whose root is `x`. -/
 def descendants (self : UnionFind) (x : ℕ) : Finset ℕ :=
   (Finset.range self.size).filter fun j =>
     self.rootD j = x
 
-open Batteries in
+
 /-- Union-find state after path compression for a find on `x`. -/
 def findState (self : UnionFind) (x : ℕ) : UnionFind :=
   (self.findD x).1
 
-open Batteries in
+
 /-- Path length + rank of node ≤ rank of root. -/
 private theorem pathLength_add_rank_le
     (self : UnionFind) (x : ℕ) :
@@ -115,7 +115,7 @@ private theorem pathLength_add_rank_le
     omega
 termination_by self.rankMax - self.rank x
 
-open Batteries in
+
 /-- Path length is bounded by the rank of the root. -/
 theorem pathLength_le_rank_root (self : UnionFind)
     (x : ℕ) :
@@ -123,7 +123,7 @@ theorem pathLength_le_rank_root (self : UnionFind)
   Nat.le_trans (Nat.le_add_right _ _)
     (pathLength_add_rank_le self x)
 
-open Batteries in
+
 /-- A root node is in its own descendants. -/
 theorem root_mem_descendants (self : UnionFind) (x : ℕ)
     (hx : x < self.size) (hroot : self.rootD x = x) :
@@ -132,7 +132,7 @@ theorem root_mem_descendants (self : UnionFind) (x : ℕ)
     Finset.mem_range]
   exact ⟨hx, hroot⟩
 
-open Batteries in
+
 /-- Every root has at least one descendant (itself). -/
 theorem one_le_descendants_card (self : UnionFind)
     (x : ℕ) (hx : x < self.size)
@@ -141,7 +141,7 @@ theorem one_le_descendants_card (self : UnionFind)
   rw [Finset.one_le_card]
   exact ⟨x, root_mem_descendants self x hx hroot⟩
 
-open Batteries in
+
 /-- The classical rank-size invariant: every root of rank `r`
 has at least `2^r` descendants. This property is maintained by
 the standard union-find operations but cannot be derived from
@@ -152,13 +152,13 @@ def RankBound (self : UnionFind) : Prop :=
   ∀ x, x < self.size → self.rootD x = x →
     2 ^ self.rank x ≤ (descendants self x).card
 
-open Batteries in
+
 /-- The empty union-find satisfies `RankBound`. -/
 theorem rankBound_empty : RankBound UnionFind.empty := by
   intro x hx
   simp [UnionFind.size] at hx
 
-open Batteries in
+
 /-- Pushing a fresh node preserves `RankBound`. -/
 theorem rankBound_push {self : UnionFind}
     (h : RankBound self) : RankBound self.push := by
@@ -203,7 +203,349 @@ theorem rankBound_push {self : UnionFind}
     exact one_le_descendants_card self.push
       self.size hx hroot'
 
-open Batteries in
+
+/-- Descendants of distinct roots are disjoint. -/
+private theorem descendants_disjoint (self : UnionFind)
+    (x y : ℕ) (hne : x ≠ y)
+    (_hxr : self.rootD x = x) (_hyr : self.rootD y = y) :
+    Disjoint (descendants self x) (descendants self y) := by
+  simp only [Finset.disjoint_left, descendants,
+    Finset.mem_filter, Finset.mem_range]
+  intro j ⟨_, hjx⟩ ⟨_, hjy⟩
+  exact hne (hjx.symm.trans hjy)
+
+
+/-- After link, the new root's descendants contain the old
+descendants of both merged roots. -/
+private theorem descendants_link_superset
+    (self : UnionFind) (x y : Fin self.size)
+    (_ : self.parent x = x)
+    (yroot : self.parent y = y) (_ : x.1 ≠ y.1)
+    (r : Fin self.size) (_ : r = x ∨ r = y)
+    (hroot : ∀ i, (self.link x y yroot).rootD i =
+      if self.rootD i = x ∨ self.rootD i = y
+      then r.1 else self.rootD i) :
+    descendants self x ∪ descendants self y ⊆
+      descendants (self.link x y yroot) r := by
+  intro j hj
+  simp only [descendants, Finset.mem_filter,
+    Finset.mem_range, Finset.mem_union] at hj ⊢
+  have hsize : (self.link x y yroot).size = self.size := by
+    change (UnionFind.linkAux self.arr x y).size = _
+    exact UnionFind.linkAux_size
+  rcases hj with ⟨hjs, hjx⟩ | ⟨hjs, hjy⟩
+  · exact ⟨by omega, by rw [hroot]; simp [hjx]⟩
+  · exact ⟨by omega, by rw [hroot]; simp [hjy]⟩
+
+
+/-- Rank of the link result for nodes other than the
+two roots follows a predictable pattern. -/
+private theorem rank_link_eq (self : UnionFind)
+    (x y : Fin self.size)
+    (yroot : self.parent y = y) (hxy : x.1 ≠ y.1)
+    (i : ℕ) (hix : i ≠ x.1) (hiy : i ≠ y.1) :
+    (self.link x y yroot).rank i = self.rank i := by
+  change UnionFind.rankD (UnionFind.linkAux self.arr x y) i =
+    UnionFind.rankD self.arr i
+  simp only [UnionFind.linkAux, show ¬(x.1 = y.1) from hxy,
+    ite_false]
+  split
+  · -- rank y < rank x
+    rw [UnionFind.rankD_set, if_neg (Ne.symm hiy)]
+  · split
+    · -- rank x = rank y
+      rw [UnionFind.rankD_set, if_neg (Ne.symm hiy),
+        UnionFind.rankD_set, if_neg (Ne.symm hix)]
+    · -- rank x < rank y
+      rw [UnionFind.rankD_set, if_neg (Ne.symm hix)]
+
+
+/-- In the y-loser case (rank y < rank x), ranks are
+all unchanged after link. -/
+private theorem rank_link_y_loser (self : UnionFind)
+    (x y : Fin self.size)
+    (yroot : self.parent y = y) (hxy : x.1 ≠ y.1)
+    (hrank : self.rank y < self.rank x) (i : ℕ) :
+    (self.link x y yroot).rank i = self.rank i := by
+  change UnionFind.rankD (UnionFind.linkAux self.arr x y) i =
+    UnionFind.rankD self.arr i
+  have hrank' : self.arr[y.1].rank < self.arr[x.1].rank := by
+    simp only [← UnionFind.rankD_eq y.2,
+      ← UnionFind.rankD_eq x.2]; exact hrank
+  simp only [UnionFind.linkAux, show ¬(x.1 = y.1) from hxy,
+    ite_false, hrank', ite_true]
+  rw [UnionFind.rankD_set]; split
+  · rename_i h; subst h; simp [UnionFind.rankD_eq y.2]
+  · rfl
+
+
+/-- In the x-loser case with equal ranks, y's rank is
+bumped by 1, x's rank unchanged. -/
+private theorem rank_link_x_loser_eq (self : UnionFind)
+    (x y : Fin self.size)
+    (yroot : self.parent y = y) (hxy : x.1 ≠ y.1)
+    (hrank : self.rank x = self.rank y) :
+    (self.link x y yroot).rank y = self.rank y + 1 := by
+  change UnionFind.rankD (UnionFind.linkAux self.arr x y) y =
+    UnionFind.rankD self.arr y + 1
+  have hxeq : self.arr[x.1].rank = self.rank x :=
+    (UnionFind.rankD_eq x.2).symm
+  have hyeq : self.arr[y.1].rank = self.rank y :=
+    (UnionFind.rankD_eq y.2).symm
+  simp only [UnionFind.linkAux, show ¬(x.1 = y.1) from hxy,
+    ite_false]
+  have hrank' : ¬(self.arr[y.1].rank < self.arr[x.1].rank) := by
+    rw [hxeq, hyeq]; omega
+  have hreq : self.arr[x.1].rank = self.arr[y.1].rank := by
+    rw [hxeq, hyeq]; exact hrank
+  rw [if_neg hrank']
+  rw [if_pos hreq]
+  rw [UnionFind.rankD_set, if_pos rfl]
+  simp only [UnionFind.rankD_eq y.2]
+
+
+/-- In the x-loser case with strictly greater rank for y,
+y's rank is unchanged. -/
+private theorem rank_link_x_loser_lt (self : UnionFind)
+    (x y : Fin self.size)
+    (yroot : self.parent y = y) (hxy : x.1 ≠ y.1)
+    (hrank : self.rank x < self.rank y) :
+    (self.link x y yroot).rank y = self.rank y := by
+  change UnionFind.rankD (UnionFind.linkAux self.arr x y) y =
+    UnionFind.rankD self.arr y
+  have hxeq : self.arr[x.1].rank = self.rank x :=
+    (UnionFind.rankD_eq x.2).symm
+  have hyeq : self.arr[y.1].rank = self.rank y :=
+    (UnionFind.rankD_eq y.2).symm
+  simp only [UnionFind.linkAux, show ¬(x.1 = y.1) from hxy,
+    ite_false]
+  have hrank' : ¬(self.arr[y.1].rank < self.arr[x.1].rank) := by
+    rw [hxeq, hyeq]; omega
+  have hreq : ¬(self.arr[x.1].rank = self.arr[y.1].rank) := by
+    rw [hxeq, hyeq]; omega
+  simp only [hrank', ite_false, hreq, ite_false, UnionFind.rankD_set]
+  rw [if_neg hxy]
+
+
+/-- Find preserves `RankBound`. -/
+theorem rankBound_findState {self : UnionFind}
+    (hrb : RankBound self) (x : ℕ) :
+    RankBound (findState self x) := by
+  if hx : x < self.size then
+    have hfs_size : (findState self x).size = self.size := by
+      simp only [findState, UnionFind.findD, dif_pos hx]
+      exact UnionFind.find_size ..
+    intro z hz hzroot
+    rw [hfs_size] at hz
+    have hfs_rank : ∀ i, (findState self x).rank i =
+        self.rank i := fun i => by
+      simp only [findState, UnionFind.findD, dif_pos hx]
+      exact UnionFind.rankD_findAux
+    rw [hfs_rank]
+    have hzroot' : self.rootD z = z := by
+      simp only [findState, UnionFind.findD, dif_pos hx]
+          at hzroot
+      rwa [UnionFind.find_root_1] at hzroot
+    have := hrb z hz hzroot'
+    suffices h : descendants self z ⊆
+        descendants (findState self x) z from
+      Nat.le_trans this (Finset.card_le_card h)
+    intro j hj
+    simp only [descendants, Finset.mem_filter,
+      Finset.mem_range] at hj ⊢
+    constructor
+    · rw [hfs_size]; exact hj.1
+    · simp only [findState, UnionFind.findD, dif_pos hx]
+      rw [UnionFind.find_root_1]; exact hj.2
+  else
+    have : findState self x = self := by
+      simp [findState, UnionFind.findD, dif_neg hx]
+    rw [this]; exact hrb
+
+
+/-- Link preserves `RankBound`. -/
+theorem rankBound_link {self : UnionFind}
+    (hrb : RankBound self)
+    (x y : Fin self.size)
+    (xroot : self.parent x = x)
+    (yroot : self.parent y = y) :
+    RankBound (self.link x y yroot) := by
+  by_cases hxy : x.1 = y.1
+  · -- Same root: link is identity
+    have : self.link x y yroot = self := by
+      change ⟨UnionFind.linkAux self.arr x y, _, _⟩ = self
+      simp only [UnionFind.linkAux, hxy, ite_true]
+    rw [this]; exact hrb
+  · -- Different roots: use root_link
+    obtain ⟨r, hr_or, hrl⟩ :=
+      UnionFind.root_link xroot yroot
+        (x := x) (y := y)
+    set L := self.link x y yroot
+    have hLsize : L.size = self.size := by
+      change (UnionFind.linkAux self.arr x y).size = _
+      exact UnionFind.linkAux_size
+    have hxr : self.rootD x = x :=
+      UnionFind.rootD_eq_self.mpr xroot
+    have hyr : self.rootD y = y :=
+      UnionFind.rootD_eq_self.mpr yroot
+    intro z hz hzroot
+    rw [hLsize] at hz
+    by_cases hz_m : self.rootD z = x ∨ self.rootD z = y
+    · -- z is in the merged component → z = r
+      have hLrz : L.rootD z = r.1 := by rw [hrl]; exact if_pos hz_m
+      rw [hzroot] at hLrz
+      subst hLrz
+      -- desc(r) in L ⊇ desc(x) ∪ desc(y) in self
+      have hsup := descendants_link_superset self x y
+        xroot yroot hxy r hr_or hrl
+      have hdisj := descendants_disjoint self x y
+        (Fin.val_ne_of_ne (fun h => hxy (congrArg _ h))) hxr hyr
+      have hcard := Finset.card_le_card hsup
+      rw [Finset.card_union_of_disjoint hdisj] at hcard
+      have hrb_x := hrb x x.2 hxr
+      have hrb_y := hrb y y.2 hyr
+      -- Suffices to show 2^(L.rank r) ≤ desc(x).card + desc(y).card
+      -- since desc(x).card + desc(y).card ≤ desc_L(r).card by hcard.
+      suffices h : 2 ^ L.rank r ≤
+          (descendants self x).card +
+          (descendants self y).card from
+        Nat.le_trans h hcard
+      -- Case split on rank comparison
+      by_cases hrank_lt : self.rank y < self.rank x
+      · -- y-loser: all ranks unchanged by rank_link_y_loser
+        have hrl_all := rank_link_y_loser self x y
+          yroot hxy hrank_lt
+        -- r = x in this case (from root_link construction)
+        -- L.rank r = self.rank r
+        rw [hrl_all]
+        -- Since r is x or y, and L.rank = self.rank for all:
+        rcases hr_or with rfl | rfl
+        · -- r = x
+          calc 2 ^ self.rank r
+              ≤ (descendants self r).card := hrb_x
+            _ ≤ _ + _ := Nat.le_add_right _ _
+        · -- r = y: but y is not a root in L (y's parent is x)
+          exfalso
+          have : L.parent r = x := by
+            change UnionFind.parent
+              (self.link x r yroot) r = x
+            rw [UnionFind.parent_link yroot]
+            simp only [hxy, ite_false, hrank_lt, ite_true]
+          have hne : L.parent r ≠ ↑r := by
+            rw [this]; exact Ne.symm
+              (Fin.val_ne_of_ne fun h => hxy (congrArg _ h.symm))
+          exact hne (UnionFind.rootD_eq_self.mp hzroot)
+      · -- x-loser: rank x ≤ rank y
+        push_neg at hrank_lt
+        rcases hr_or with rfl | rfl
+        · -- r = x: but x is not a root in L (x's parent is y)
+          exfalso
+          have hpr : L.parent r = y := by
+            change UnionFind.parent
+              (self.link r y yroot) r = y
+            rw [UnionFind.parent_link yroot]
+            simp only [hxy, ite_false,
+              show ¬(self.rank y < self.rank r) from
+                not_lt.mpr hrank_lt]
+            simp
+          have hne : L.parent r ≠ ↑r := by
+            rw [hpr]; exact
+              Fin.val_ne_of_ne fun h => hxy (congrArg _ h.symm)
+          exact hne (UnionFind.rootD_eq_self.mp hzroot)
+        · -- r = y (correct case)
+          by_cases hreq : self.rank x = self.rank r
+          · rw [rank_link_x_loser_eq self x r yroot hxy hreq]
+            have h1 : 2 ^ self.rank r ≤
+                (descendants self x).card := by rwa [← hreq]
+            have h2 : 2 ^ self.rank r ≤
+                (descendants self r).card := hrb_y
+            have : 2 ^ (self.rank r + 1) =
+                2 ^ self.rank r + 2 ^ self.rank r := by
+              rw [Nat.pow_succ]; omega
+            omega
+          · have hlt : self.rank x < self.rank r := by omega
+            rw [rank_link_x_loser_lt self x r yroot hxy hlt]
+            exact Nat.le_trans hrb_y (Nat.le_add_left _ _)
+    · -- z not in merged component
+      push_neg at hz_m
+      have hLrz : L.rootD z = self.rootD z := by
+        rw [hrl, if_neg (by push_neg; exact hz_m)]
+      have hzroot_self : self.parent z = z :=
+        UnionFind.rootD_eq_self.mp (hLrz.symm.trans hzroot)
+      have hzroot' : self.rootD z = z :=
+        UnionFind.rootD_eq_self.mpr hzroot_self
+      rw [UnionFind.rootD_eq_self.mpr hzroot_self] at hLrz
+      have hrb_z := hrb z hz hzroot'
+      have hzne_x : z ≠ x.1 :=
+        fun h => hz_m.1 (by rw [h, hxr])
+      have hzne_y : z ≠ y.1 :=
+        fun h => hz_m.2 (by rw [h, hyr])
+      rw [rank_link_eq self x y yroot hxy z hzne_x hzne_y]
+      suffices hsub : descendants self z ⊆ descendants L z from
+        Nat.le_trans hrb_z (Finset.card_le_card hsub)
+      intro j hj
+      simp only [descendants, Finset.mem_filter,
+        Finset.mem_range] at hj ⊢
+      refine ⟨by rw [hLsize]; exact hj.1, ?_⟩
+      rw [hrl, if_neg]
+      · exact hj.2
+      · push_neg; constructor
+        · intro h; exact hzne_x (by rw [← hj.2]; exact h)
+        · intro h; exact hzne_y (by rw [← hj.2]; exact h)
+
+
+/-- Union preserves `RankBound`. -/
+theorem rankBound_union {self : UnionFind}
+    (hrb : RankBound self)
+    (x y : Fin self.size) :
+    RankBound (self.union x y) := by
+  -- Unfold union: find x, find y, link rx ry
+  unfold UnionFind.union
+  simp only
+  -- After unfolding, the goal is about a link on self₂
+  -- self₁ = (self.find x).1, self₂ = (self₁.find y').1
+  set res := self.find x with hres
+  set self₁ := res.1
+  set rx := res.2 with hrx_def
+  have hsize₁ : self₁.size = self.size :=
+    UnionFind.find_size self x
+  have hy₁ : ↑y < self₁.size := by rw [hsize₁]; exact y.2
+  -- RankBound for self₁
+  have hself₁ : self₁ = findState self ↑x := by
+    change res.1 = (self.findD ↑x).1
+    rw [UnionFind.findD, dif_pos x.2, ← hres]
+  have hrb₁ : RankBound self₁ :=
+    hself₁ ▸ rankBound_findState hrb ↑x
+  -- self₂
+  set res₂ := self₁.find ⟨↑y, hy₁⟩ with hres₂
+  set self₂ := res₂.1
+  set ry := res₂.2 with hry_def
+  -- RankBound for self₂
+  have hself₂ : self₂ = findState self₁ ↑y := by
+    change res₂.1 = (self₁.findD ↑y).1
+    rw [UnionFind.findD, dif_pos hy₁, ← hres₂]
+  have hrb₂ : RankBound self₂ :=
+    hself₂ ▸ rankBound_findState hrb₁ ↑y
+  -- rx is a root in self₂
+  have hrx_val : rx.1.1 = self.rootD x :=
+    UnionFind.find_root_2 self x
+  have h0 : self₁.rootD x = self.rootD x :=
+    UnionFind.find_root_1 self x x
+  have h1 : self₁.parent (self.rootD x) = self.rootD x := by
+    rw [← h0, UnionFind.parent_rootD, h0]
+  have hrx_root : self₂.parent rx.1.1 = rx.1.1 := by
+    rw [hrx_val]
+    rcases UnionFind.find_parent_or self₁ ⟨↑y, hy₁⟩
+      (self.rootD x) with ⟨h2, _⟩ | h2
+    · rw [h2]
+      exact UnionFind.rootD_eq_self.mpr h1
+    · rw [h2, h1]
+  -- The goal should now be about self₂.link ...
+  -- Apply rankBound_link
+  change RankBound (self₂.link _ _ _)
+  exact rankBound_link hrb₂ _ _ hrx_root _
+
+
 /-- A node of rank `r` has at least `2^r` descendants.
 Classical rank-size bound for union-by-rank.
 
@@ -218,7 +560,7 @@ theorem two_pow_rank_le_descendants_card
     2 ^ self.rank x ≤ (descendants self x).card :=
   hrb x hx hroot
 
-open Batteries in
+
 /-- Rank of any node is at most `log₂` of the structure size. -/
 theorem rank_le_log_size (self : UnionFind) (x : ℕ)
     (hx : x < self.size) (hrb : RankBound self) :
@@ -245,7 +587,7 @@ theorem rank_le_log_size (self : UnionFind) (x : ℕ)
     _ ≤ Nat.log 2 self.size :=
         Nat.le_log_of_pow_le (by omega) h2r
 
-open Batteries in
+
 /-- Per-call worst-case bound: path length ≤ `log₂(n)`. -/
 theorem pathLength_le_log_size (self : UnionFind)
     (x : ℕ) (hrb : RankBound self) :
@@ -263,7 +605,7 @@ theorem pathLength_le_log_size (self : UnionFind)
     · exact Nat.zero_le _
     · exact UnionFind.parentD_of_not_lt hx
 
-open Batteries in
+
 /-- `findState` preserves the equivalence relation. -/
 theorem findState_equiv (self : UnionFind) (x a b : ℕ) :
     UnionFind.Equiv (findState self x) a b ↔
@@ -273,7 +615,7 @@ theorem findState_equiv (self : UnionFind) (x a b : ℕ) :
   · exact UnionFind.equiv_find
   · exact Iff.rfl
 
-open Batteries in
+
 /-- `findState` preserves the size. -/
 theorem findState_size (self : UnionFind) (x : ℕ) :
     (findState self x).size = self.size := by

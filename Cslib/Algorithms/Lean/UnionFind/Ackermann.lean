@@ -225,7 +225,7 @@ theorem ackIter_iterCount_le (k r n : ℕ)
     ackIter k (iterCount k r n) r ≤ n := by
   rw [iterCount]
   split
-  · simp; exact hr
+  · simp only [ackIter_zero]; exact hr
   · rename_i h; push_neg at h
     show ackIter k (1 + iterCount k (ack k r) n) r ≤ n
     rw [show 1 + iterCount k (ack k r) n =
@@ -266,7 +266,7 @@ theorem ack_succ_eq_ackIter (k n : ℕ) :
 theorem ackIter_mono_base {k i a b : ℕ}
     (h : a ≤ b) : ackIter k i a ≤ ackIter k i b := by
   induction i with
-  | zero => simp [ackIter]; exact h
+  | zero => simp only [ackIter_zero]; exact h
   | succ i ih =>
     simp only [ackIter_succ]
     exact ack_le_ack (le_refl k) ih
