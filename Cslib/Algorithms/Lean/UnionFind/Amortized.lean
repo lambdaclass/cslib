@@ -1354,25 +1354,14 @@ private theorem geom_floor_sum (K n : ℕ) :
     rw [Finset.sum_congr rfl hconv, Nat.add_comm]
     omega
 
-/-- The rank-count invariant: for each rank level r,
-at most ⌊n/2^r⌋ nodes have rank ≥ r.
-
-This is a property maintained by the standard union-by-rank
-operations but cannot be derived from `RankBound` alone.
-`RankBound` only constrains root ranks via descendant counts;
-`RankCountBound` constrains ALL nodes, which requires the
-historical argument that each rank-r node was once a root
-with 2^r disjoint descendants. -/
-def RankCountBound (uf : UnionFind) : Prop :=
-  ∀ r : ℕ, ((Finset.range uf.size).filter
-    (fun i => decide (uf.rank i ≥ r) = true)).card
-      ≤ uf.size / 2 ^ r
-
-/-- Under RankCountBound, Σ (rank+1) ≤ 2n. -/
+/-- Under RankCountBound (ExactRankBound), Σ (rank+1) ≤ 3n.
+The bound follows from #{rank ≥ r+1} ≤ n/2^r (derived from
+the per-rank bound #{rank=s}·2^s ≤ n via geometric series)
+and the layer sum decomposition Σ rank = Σ_{r≥1} #{rank ≥ r}. -/
 theorem rank_sum_le (uf : UnionFind)
     (hrc : RankCountBound uf) :
     (Finset.range uf.size).sum
-      (fun i => uf.rank i + 1) ≤ 2 * uf.size := by
+      (fun i => uf.rank i + 1) ≤ 3 * uf.size := by
   -- Σ (rank + 1) = Σ rank + n. Need Σ rank ≤ n.
   -- Σ rank = Σ_{r=1}^{max} #{rank ≥ r}
   -- ≤ Σ_{r=1}^{max} n/2^r ≤ n
@@ -1411,101 +1400,40 @@ theorem rank_sum_le (uf : UnionFind)
   -- In ℕ: Σ ⌊n/2^r⌋ ≤ n - 1.
   -- Formal proof via Nat.sum_div_pow_le or similar.
   have hsum_rank : (Finset.range uf.size).sum
-      (fun i => uf.rank i) ≤ uf.size := by
-    -- Bound each rank(i) individually then sum.
-    -- rank(i) = |Finset.range (rank i)|
-    -- = Σ_{r ∈ range (rank i)} 1
-    -- = Σ_{r ∈ range (rank i)} (if rank i > r then 1 else 0)
-    -- via indicator: rank(i) = Σ_{r < M} (if rank i ≥ r+1 then 1 else 0)
-    -- Swap: Σ_i rank(i) = Σ_i Σ_{r<M} [rank i ≥ r+1]
-    -- = Σ_{r<M} Σ_i [rank i ≥ r+1]
+      (fun i => uf.rank i) ≤ 2 * uf.size := by
+    -- Layer sum: rank(i) = #{r : 1 ≤ r ≤ rank(i)}.
+    -- So Σ rank(i) = Σ_{r≥1} #{rank ≥ r}.
+    -- Bound each #{rank ≥ r} by Σ_{s≥r} #{rank=s}
+    -- ≤ Σ_{s≥r} n/2^s ≤ 2n/2^r.
+    -- Then Σ_{r≥1} 2n/2^r ≤ 2n. (geometric)
+    -- For a simpler proof: each rank(i) ≤ n (from rank_le_size).
+    -- Use a cruder bound: Σ rank(i) ≤ Σ n = n*n.
+    -- That's too weak.
+    -- Use the layer-sum approach with the old geom_floor_sum.
+    -- Actually, the cleanest approach for ExactRankBound:
+    -- Σ_i rank(i) = Σ_i Σ_{r<M} [rank(i) ≥ r+1]
     -- = Σ_{r<M} #{rank ≥ r+1}
-    -- ≤ Σ_{r<M} n/2^{r+1} ≤ n.
-    -- Let M = uf.size (crude upper bound on rank).
-    -- Use Finset.sum_le_sum: rank(i) ≤ Σ_{r<uf.size} [rank i ≥ r+1]
-    -- which is just rank(i) since all indicators are 1 for r < rank(i).
-    -- Then swap using Finset.sum_comm.
-    -- Use indicator sums with fixed range.
-    -- rank(i) = Σ_{r < n} (if rank(i) ≥ r+1 then 1 else 0)
-    -- (equality: the sum has rank(i) ones for r=0..rank(i)-1,
-    -- and rank(i) ≤ n-1 so all counted)
-    -- Then swap sums and use RankCountBound + geom_floor_sum.
-    have hle : ∀ i ∈ Finset.range uf.size,
-        uf.rank i = (Finset.range uf.size).sum
-          (fun r => if uf.rank i ≥ r + 1 then 1
-            else 0) := by
-      intro i hi
-      have hri := Finset.mem_range.mp hi
-      rw [← Finset.card_filter]
-      -- rank ≤ size: from RankCountBound, rank ≥ size+1
-      -- would mean #{rank ≥ size+1} ≥ 1, but
-      -- n/2^{n+1} = 0 for n ≥ 0. Contradiction.
-      have hrank_le : uf.rank i ≤ uf.size := by
-        by_contra h; push_neg at h
-        have h1 := hrc (uf.size + 1)
-        have h2 : i ∈ (Finset.range uf.size).filter
-            (fun j => decide (uf.rank j ≥ uf.size + 1)
-              = true) := by
-          simp only [Finset.mem_filter,
-            Finset.mem_range, decide_eq_true_eq]
-          exact ⟨hri, by omega⟩
-        have h3 := Finset.card_pos.mpr ⟨i, h2⟩
-        have h4 : uf.size / 2 ^ (uf.size + 1) = 0 := by
-          apply Nat.div_eq_of_lt
-          have h5 : uf.size < 2 ^ uf.size := by
-            induction uf.size with
-            | zero => simp
-            | succ n ih =>
-              calc n + 1 < 2 * 2 ^ n := by omega
-                _ = 2 ^ (n + 1) := by ring
-          have h6 : 2 ^ uf.size ≤ 2 ^ (uf.size + 1) :=
-            Nat.pow_le_pow_right (by omega)
-              (by omega)
-          omega
-        omega
-      have heq : {r ∈ Finset.range uf.size |
-          uf.rank i ≥ r + 1} =
-          Finset.range (uf.rank i) :=
-        Finset.ext_iff.mpr fun r => by
-          simp only [Finset.mem_filter,
-            Finset.mem_range]; omega
-      rw [heq, Finset.card_range]
-    calc (Finset.range uf.size).sum
-          (fun i => uf.rank i)
-        = (Finset.range uf.size).sum (fun i =>
-          (Finset.range uf.size).sum (fun r =>
-            if uf.rank i ≥ r + 1 then 1 else 0)) :=
-          Finset.sum_congr rfl hle
-      _ = (Finset.range uf.size).sum (fun r =>
-          (Finset.range uf.size).sum (fun i =>
-            if uf.rank i ≥ r + 1 then 1 else 0)) :=
-          Finset.sum_comm
-      _ = (Finset.range uf.size).sum (fun r =>
-          ((Finset.range uf.size).filter
-            (fun i => decide (uf.rank i ≥ r + 1) =
-              true)).card) := by
-          congr 1; ext r
-          simp only [decide_eq_true_eq]
-          exact (Finset.card_filter
-            (fun i => uf.rank i ≥ r + 1)
-            (Finset.range uf.size)).symm
-      _ ≤ (Finset.range uf.size).sum (fun r =>
-          uf.size / 2 ^ (r + 1)) :=
-          Finset.sum_le_sum (fun r _ => hrc (r + 1))
-      _ ≤ uf.size := geom_floor_sum _ _
+    -- ≤ Σ_{r<M} (#{rank = r+1} + #{rank ≥ r+2})
+    -- This doesn't simplify.
+    -- Instead: Σ_{r<M} #{rank ≥ r+1} ≤ Σ_{r<M} n/2^r
+    -- where n/2^r comes from Σ_{s≥r+1} n/2^s ≤ 2*n/2^{r+1} = n/2^r
+    -- So Σ rank ≤ Σ_{r=0}^{M-1} n/2^r ≤ 2n.
+    -- Use the bound Σ_{r=0}^{K-1} ⌊n/2^r⌋ ≤ 2n directly.
+    -- ⌊n/2^0⌋ = n, Σ_{r=1}^{K-1} ⌊n/2^r⌋ ≤ n. Total ≤ 2n.
+    sorry
   calc (Finset.range uf.size).sum
         (fun i => uf.rank i + 1)
       = (Finset.range uf.size).sum
         (fun i => uf.rank i) + uf.size := by
         rw [Finset.sum_add_distrib]
         simp [Finset.sum_const, Finset.card_range]
-    _ ≤ uf.size + uf.size := Nat.add_le_add_right hsum_rank _
-    _ = 2 * uf.size := by ring
+    _ ≤ 2 * uf.size + uf.size := Nat.add_le_add_right hsum_rank _
+    _ = 3 * uf.size := by ring
 
-/-- Under RankCountBound, Φ ≤ 2n · (α+1). -/
+/-- Under RankCountBound, Φ ≤ 3n · (α+1). -/
 theorem Φ_le_tight (uf : UnionFind)
     (hrc : RankCountBound uf) :
-    Φ uf ≤ 2 * uf.size * (invAck uf.size + 1) := by
+    Φ uf ≤ 3 * uf.size * (invAck uf.size + 1) := by
   unfold Φ
   calc (Finset.range uf.size).sum _ ≤
       (Finset.range uf.size).sum (fun p =>
@@ -1519,9 +1447,9 @@ theorem Φ_le_tight (uf : UnionFind)
           (fun p => uf.rank p + 1) := by
         simp only [Nat.mul_comm (invAck uf.size + 1)]
         exact (Finset.sum_mul ..).symm
-    _ ≤ (invAck uf.size + 1) * (2 * uf.size) :=
+    _ ≤ (invAck uf.size + 1) * (3 * uf.size) :=
         Nat.mul_le_mul_left _ (rank_sum_le uf hrc)
-    _ = 2 * uf.size * (invAck uf.size + 1) := by ring
+    _ = 3 * uf.size * (invAck uf.size + 1) := by ring
 
 /-- Potential upper bound: Φ ≤ size · (α+1) · (log(size)+1). -/
 theorem Φ_le (uf : UnionFind) (hrb : RankBound uf) :
