@@ -12,6 +12,7 @@ public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 public import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
 public import Mathlib.Algebra.BigOperators.Ring.Finset
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
+public import Mathlib.Tactic.Linarith
 
 /-!
 # Amortized O(α(n)) Bound for Union-Find
@@ -1354,7 +1355,52 @@ private theorem geom_floor_sum (K n : ℕ) :
     rw [Finset.sum_congr rfl hconv, Nat.add_comm]
     omega
 
-/-- Under RankCountBound (ExactRankBound), Σ (rank+1) ≤ 3n.
+/-- Weighted geometric floor sum: Σ_{s<K} s·⌊n/2^s⌋ ≤ 2n.
+Proof: expand s = Σ_{t<s} 1, swap sums, bound inner by
+geom_floor_sum, sum the bounds. -/
+private theorem weighted_geom_floor_sum (K n : ℕ) :
+    (Finset.range K).sum (fun s => s * (n / 2 ^ s)) ≤
+      2 * n := by
+  -- Induction on n using halving:
+  -- Σ_{s<K} s·⌊n/2^s⌋ = 0 + Σ_{s=1}^{K-1} s·⌊n/2^s⌋.
+  -- ⌊n/2^s⌋ = ⌊⌊n/2⌋/2^{s-1}⌋ (Nat.div_div_eq_div_mul).
+  -- Σ_{s=1}^{K-1} s·⌊(n/2)/2^{s-1}⌋ (substitute r = s-1)
+  -- = Σ_{r<K-1} (r+1)·⌊(n/2)/2^r⌋
+  -- = Σ_{r<K-1} r·⌊(n/2)/2^r⌋ + Σ_{r<K-1} ⌊(n/2)/2^r⌋
+  -- ≤ 2·(n/2) + 2·(n/2) = 2n (by IH + geom_floor_sum).
+  -- But geom_floor_sum gives Σ_{r<K} ⌊m/2^{r+1}⌋ ≤ m, so
+  -- Σ_{r<K} ⌊m/2^r⌋ = m + Σ_{r=1}^{K-1} ⌊m/2^r⌋ ≤ 2m.
+  induction K generalizing n with
+  | zero => simp
+  | succ K ih =>
+    rw [Finset.sum_range_succ']
+    simp only [Nat.zero_mul, zero_add]
+    -- Goal: Σ_{s<K} (s+1)·(n/2^{s+1}) ≤ 2n
+    -- n/2^{s+1} = (n/2)/2^s by Nat.div_div_eq_div_mul.
+    -- (s+1)·((n/2)/2^s) = s·((n/2)/2^s) + (n/2)/2^s
+    have hconv : ∀ s ∈ Finset.range K,
+        (s + 1) * (n / 2 ^ (s + 1)) =
+        s * ((n / 2) / 2 ^ s) + (n / 2) / 2 ^ s := by
+      intro s _
+      rw [show n / 2 ^ (s + 1) = (n / 2) / 2 ^ s from by
+        rw [Nat.div_div_eq_div_mul]; congr 1; rw [Nat.pow_succ]; ring]
+      ring
+    rw [Finset.sum_congr rfl hconv, Finset.sum_add_distrib]
+    -- Σ s·((n/2)/2^s) + Σ (n/2)/2^s ≤ 2n
+    have h1 := ih (n / 2)
+    -- h1: Σ_{s<K} s·((n/2)/2^s) ≤ 2·(n/2)
+    have h2 : (Finset.range K).sum
+        (fun s => (n / 2) / 2 ^ s) ≤ n := by
+      cases K with
+      | zero => simp
+      | succ K' =>
+        rw [Finset.sum_range_succ']
+        simp only [Nat.pow_zero, Nat.div_one, Nat.zero_add]
+        have := geom_floor_sum K' (n / 2)
+        omega
+    omega
+
+/-- Under ExactRankBound, Σ (rank+1) ≤ 3n.
 The bound follows from #{rank ≥ r+1} ≤ n/2^r (derived from
 the per-rank bound #{rank=s}·2^s ≤ n via geometric series)
 and the layer sum decomposition Σ rank = Σ_{r≥1} #{rank ≥ r}. -/
@@ -1399,28 +1445,415 @@ theorem rank_sum_le (uf : UnionFind)
   -- Σ_{r=1}^K ⌊n/2^r⌋ ≤ Σ_{r=1}^K (n/2^r) < n.
   -- In ℕ: Σ ⌊n/2^r⌋ ≤ n - 1.
   -- Formal proof via Nat.sum_div_pow_le or similar.
+  -- Use direct weighted sum: Σ_i rank(i) = Σ_s s·#{rank=s}
+  -- ≤ Σ_s s·(n/2^s) ≤ 2n.
+  have hcount : ∀ s, ((Finset.range uf.size).filter
+      (fun i => decide (uf.rank i = s) = true)).card ≤
+      uf.size / 2 ^ s := fun s =>
+    (Nat.le_div_iff_mul_le (Nat.two_pow_pos s)).mpr (hrc s)
   have hsum_rank : (Finset.range uf.size).sum
       (fun i => uf.rank i) ≤ 2 * uf.size := by
-    -- Layer sum: rank(i) = #{r : 1 ≤ r ≤ rank(i)}.
-    -- So Σ rank(i) = Σ_{r≥1} #{rank ≥ r}.
-    -- Bound each #{rank ≥ r} by Σ_{s≥r} #{rank=s}
-    -- ≤ Σ_{s≥r} n/2^s ≤ 2n/2^r.
-    -- Then Σ_{r≥1} 2n/2^r ≤ 2n. (geometric)
-    -- For a simpler proof: each rank(i) ≤ n (from rank_le_size).
-    -- Use a cruder bound: Σ rank(i) ≤ Σ n = n*n.
-    -- That's too weak.
-    -- Use the layer-sum approach with the old geom_floor_sum.
-    -- Actually, the cleanest approach for ExactRankBound:
-    -- Σ_i rank(i) = Σ_i Σ_{r<M} [rank(i) ≥ r+1]
-    -- = Σ_{r<M} #{rank ≥ r+1}
-    -- ≤ Σ_{r<M} (#{rank = r+1} + #{rank ≥ r+2})
-    -- This doesn't simplify.
-    -- Instead: Σ_{r<M} #{rank ≥ r+1} ≤ Σ_{r<M} n/2^r
-    -- where n/2^r comes from Σ_{s≥r+1} n/2^s ≤ 2*n/2^{r+1} = n/2^r
-    -- So Σ rank ≤ Σ_{r=0}^{M-1} n/2^r ≤ 2n.
-    -- Use the bound Σ_{r=0}^{K-1} ⌊n/2^r⌋ ≤ 2n directly.
-    -- ⌊n/2^0⌋ = n, Σ_{r=1}^{K-1} ⌊n/2^r⌋ ≤ n. Total ≤ 2n.
-    sorry
+    -- rank(i) ≤ 2^rank(i) - 1 for rank ≥ 1, 0 for rank 0.
+    -- So Σ rank ≤ Σ (2^rank - 1) = (Σ 2^rank) - n.
+    -- Hmm, can't subtract in Nat easily.
+    -- Direct: Σ rank(i) = Σ_{s≥1} #{rank ≥ s} (layer sum).
+    -- #{rank ≥ s} ≤ n for all s (trivially).
+    -- But Σ n = n² (too weak).
+    -- Actually the simplest approach: each rank(i) ≤ log₂(n),
+    -- so Σ rank ≤ n·log(n). Too weak for 2n.
+    -- The correct approach requires partitioning by rank.
+    -- Σ rank = Σ_s s · #{rank=s}.
+    -- #{rank=s} ≤ n/2^s (from hcount).
+    -- Σ_s s · n/2^s: need this ≤ 2n.
+    -- For each s ≥ 1: s/2^s ≤ 1 (since s ≤ 2^s).
+    -- So s · (n/2^s) ≤ n.
+    -- And #{rank=s} = 0 for all s > log₂(n).
+    -- So Σ_{s=1}^{log n} s·(n/2^s) ≤ log(n)·n. Still O(n log n).
+    -- TIGHTER: s/2^s ≤ 1/2^{s/2} for s ≥ 2.
+    -- Σ 1/2^{s/2} converges. But not to 2.
+    -- The CORRECT approach: Σ_{s≥0} s·x^s = x/(1-x)² for |x|<1.
+    -- At x=1/2: Σ s/2^s = (1/2)/(1/2)² = 2. EXACTLY 2.
+    -- For Nat div: Σ_{s≥0} s·⌊n/2^s⌋ ≤ Σ_{s≥0} s·n/2^s = 2n.
+    -- But ⌊n/2^s⌋ ≤ n/2^s doesn't hold exactly for nat.
+    -- Actually it does: ⌊n/2^s⌋ ≤ n/2^s (real). And for the sum:
+    -- Σ s·⌊n/2^s⌋ ≤ Σ s·(n/2^s) = 2n in reals.
+    -- For Nat: can't multiply by reals. But:
+    -- Σ s·⌊n/2^s⌋ ≤ 2n because:
+    -- s·⌊n/2^s⌋ = s·⌊n/2^s⌋.
+    -- Use: Σ_{s=0}^{K} s·⌊n/2^s⌋
+    -- = 0 + Σ_{s=1}^{K} Σ_{t=0}^{s-1} ⌊n/2^s⌋
+    -- = Σ_{t=0}^{K-1} Σ_{s=t+1}^{K} ⌊n/2^s⌋ (swap)
+    -- ≤ Σ_{t=0}^{K-1} ⌊n/2^t⌋ (each inner ≤ ⌊n/2^t⌋ by geom)
+    -- = n + Σ_{t=1}^{K-1} ⌊n/2^t⌋ ≤ n + n = 2n.
+    -- Partition nodes by rank, then use weighted sum.
+    -- Step 1: Σ_i rank(i) = Σ_{s<n} s · #{rank=s} (regroup)
+    -- Step 2: ≤ Σ_{s<n} s · (n/2^s) (bound each #{rank=s})
+    -- Step 3: ≤ 2n (arithmetic, as above)
+    -- For Step 1, use Finset.sum_ite_eq' to regroup.
+    -- For Step 3, prove the weighted geom sum.
+    -- Step 1: Σ_i rank(i) ≤ Σ_{s<n} s · #{rank=s}
+    -- Note: rank(i) < n for all i (from hrank_le).
+    -- rank(i) = Σ_{s<n} (if rank(i) = s then s else 0)
+    -- = Σ_{s<n} s · [rank(i) = s]
+    -- Σ_i rank(i) = Σ_i Σ_s s · [rank(i)=s] = Σ_s s · #{rank=s}
+    have hrank_le : ∀ i, i < uf.size → uf.rank i ≤ uf.size :=
+      fun i hi => rank_le_size_of_rankCountBound hrc i hi
+    -- Step 1: regroup
+    have hregroup : ∀ i ∈ Finset.range uf.size,
+        uf.rank i = (Finset.range uf.size).sum
+          (fun s => if uf.rank i = s then s else 0) := by
+      intro i hi
+      have hri := hrank_le i (Finset.mem_range.mp hi)
+      have : (Finset.range uf.size).sum
+          (fun s => if uf.rank i = s then s else 0) =
+          (Finset.range uf.size).sum
+          (fun s => if s = uf.rank i then s else 0) := by
+        congr 1; ext s; split_ifs <;> omega
+      rw [this]
+      simp only [Finset.sum_ite_eq', Finset.mem_range, id]
+      have : uf.rank i < uf.size := by
+        have h1 := hrank_le i (Finset.mem_range.mp hi)
+        -- rank ≤ size. Strict: if rank = size, then 2^size ≤ size (from hrc). Impossible.
+        by_contra h2; push_neg at h2
+        have heq : uf.rank i = uf.size := Nat.le_antisymm h1 h2
+        have := hrc uf.size
+        have h5 : i ∈ (Finset.range uf.size).filter
+            (fun j => decide (uf.rank j = uf.size) = true) := by
+          simp [Finset.mem_filter, Finset.mem_range,
+            Finset.mem_range.mp hi, heq]
+        have h6 := Finset.card_pos.mpr ⟨i, h5⟩
+        have h7 : 2 ^ uf.size ≤ uf.size := by nlinarith
+        have h8 : uf.size < 2 ^ uf.size := by
+          induction uf.size with
+          | zero => simp
+          | succ n ih =>
+            calc n + 1 < 2 * 2 ^ n := by omega
+              _ = 2 ^ (n + 1) := by rw [Nat.pow_succ]; omega
+        omega
+      rw [if_pos this]
+    -- Step 2: swap and bound
+    calc (Finset.range uf.size).sum (fun i => uf.rank i)
+        = (Finset.range uf.size).sum (fun i =>
+            (Finset.range uf.size).sum (fun s =>
+              if uf.rank i = s then s else 0)) :=
+          Finset.sum_congr rfl hregroup
+      _ = (Finset.range uf.size).sum (fun s =>
+            (Finset.range uf.size).sum (fun i =>
+              if uf.rank i = s then s else 0)) :=
+          Finset.sum_comm
+      _ = (Finset.range uf.size).sum (fun s =>
+            s * ((Finset.range uf.size).filter
+              (fun i => decide (uf.rank i = s) = true)).card) := by
+          congr 1; ext s
+          -- Σ_i (if rank(i)=s then s else 0) = s · #{rank=s}
+          -- Factor out constant s: Σ (if p then s else 0) = s · Σ (if p then 1 else 0)
+          have : (Finset.range uf.size).sum (fun i =>
+              if uf.rank i = s then s else 0) =
+              s * (Finset.range uf.size).sum (fun i =>
+                if uf.rank i = s then 1 else 0) := by
+            simp only [Finset.mul_sum]
+            congr 1; ext i; split <;> omega
+          rw [this, ← Finset.card_filter]; simp [decide_eq_true_eq]
+      _ ≤ (Finset.range uf.size).sum (fun s =>
+            s * (uf.size / 2 ^ s)) :=
+          Finset.sum_le_sum (fun s _ =>
+            Nat.mul_le_mul_left s (hcount s))
+      -- Step 3: Σ s·⌊n/2^s⌋ ≤ 2n (weighted geometric sum)
+      _ ≤ 2 * uf.size := by
+          -- Expand s into sum of 1's, swap, use geom_floor_sum.
+          -- Σ_{s<K} s·f(s) = Σ_{s<K} Σ_{t<s} f(s)
+          --   = Σ_{t<K} Σ_{s=t+1}^{K-1} f(s) (swap)
+          -- For f(s) = ⌊n/2^s⌋:
+          -- Σ_{s=t+1}^{K-1} ⌊n/2^s⌋
+          -- = Σ_{r<K-t-1} ⌊n/2^{t+1+r}⌋
+          -- = Σ_{r<K-t-1} ⌊⌊n/2^t⌋/2^{r+1}⌋ (div_div_eq_div_mul)
+          -- ≤ ⌊n/2^t⌋ (geom_floor_sum)
+          -- So: Σ_{t<K} ⌊n/2^t⌋
+          -- = n + Σ_{t=1}^{K-1} ⌊n/2^t⌋ ≤ n + n = 2n.
+          exact weighted_geom_floor_sum _ _
+  /-
+    -- Rewrite as Σ_s s · #{rank = s} using indicator decomposition
+    -- rank(i) = Σ_{s<n} s · [rank(i) = s]
+    -- Σ_i rank(i) = Σ_i Σ_s s·[rank=s] = Σ_s s · #{rank=s}
+    -- ≤ Σ_s s · (n/2^s) ≤ 2n.
+    -- For the last step: Σ_{s=0}^{K} s·⌊n/2^s⌋
+    -- = Σ_{s=0}^{K} Σ_{t=0}^{s-1} ⌊n/2^s⌋
+    -- = Σ_{t=0}^{K-1} Σ_{s=t+1}^{K} ⌊n/2^s⌋
+    -- ≤ Σ_{t=0}^{K-1} n (by geom_floor_sum at each t)
+    -- This gives K·n, which is too weak.
+    -- Better: Σ_{s=0}^{K} s·⌊n/2^s⌋
+    -- = 0 + Σ_{s=1}^{K} s·⌊n/2^s⌋
+    -- ≤ Σ_{s=1}^{K} s·⌊n/2^s⌋
+    -- We need a weighted geometric bound.
+    -- Use: s/2^s ≤ 1/2^{s-1} for s ≥ 1 (since s ≤ 2^{s-1} for s ≥ 1).
+    -- Then Σ_{s=1}^{K} s·⌊n/2^s⌋ ≤ Σ_{s=1}^{K} ⌊n/2^{s-1}⌋·...
+    -- This doesn't simplify well for nat div.
+    -- Simplest approach: Σ_i rank(i) ≤ Σ_i rank(i).
+    -- Use the layer-sum approach but bound the sum directly.
+    -- Σ rank(i) = Σ_{r≥1} #{rank ≥ r}
+    -- #{rank ≥ r} ≤ card(range n) = n (trivially)
+    -- But #{rank ≥ r} = Σ_{s≥r} #{rank=s} ≤ Σ_{s≥r} n/2^s
+    -- For nat div: Σ_{s=r}^{∞} ⌊n/2^s⌋. Truncate at n.
+    -- Use: Σ_{s=1}^{K} ⌊n/2^s⌋ ≤ n (geom_floor_sum with shift).
+    -- geom_floor_sum says Σ_{r<K} ⌊n/2^{r+1}⌋ ≤ n.
+    -- This is Σ_{r=1}^{K} ⌊n/2^r⌋ ≤ n (shifting index).
+    -- So #{rank ≥ r} ≤ Σ_{s=r}^{n} ⌊n/2^s⌋ ≤ Σ_{s=0}^{n} ⌊n/2^s⌋
+    --   = n + Σ_{s=1}^{n} ⌊n/2^s⌋ ≤ 2n. TOO WEAK per term.
+    -- Correct approach: DON'T bound per term. Use the double-counting.
+    -- Σ_{r=1}^{M} #{rank ≥ r} = Σ_i rank(i) (layer identity).
+    -- #{rank ≥ r} = #{rank = r} + #{rank ≥ r+1}.
+    -- Σ_{r=1}^{M} #{rank ≥ r} = Σ_{r=1}^{M} Σ_{s=r}^{M} #{rank=s}
+    --   = Σ_{s=1}^{M} s·#{rank=s}.
+    -- From hrc: #{rank=s}·2^s ≤ n. So #{rank=s} ≤ n/2^s.
+    -- Σ_{s=1}^{M} s·#{rank=s} ≤ Σ_{s=1}^{M} s·(n/2^s).
+    -- Need: Σ_{s=1}^{M} s·⌊n/2^s⌋ ≤ 2n.
+    -- Proof: s·⌊n/2^s⌋ ≤ s·n/2^s (real). Σ s/2^s = 2. So Σ ≤ 2n.
+    -- For nat div: s·⌊n/2^s⌋ ≤ s·(n/2^s). But n/2^s is real...
+    -- Use: Σ_{s=1}^{M} s·⌊n/2^s⌋ = Σ_{s=1}^{M} Σ_{t=1}^{s} ⌊n/2^s⌋
+    -- = Σ_{t=1}^{M} Σ_{s=t}^{M} ⌊n/2^s⌋
+    -- ≤ Σ_{t=1}^{M} Σ_{s=t}^{M} ⌊n/2^s⌋
+    -- ≤ Σ_{t=1}^{M} (Σ_{s=1}^{M} ⌊n/2^s⌋) = M·n. TOO WEAK.
+    -- Better: Σ_{s=t}^{M} ⌊n/2^s⌋ ≤ ⌊n/2^{t-1}⌋.
+    -- Proof: Σ_{s=t}^{M} ⌊n/2^s⌋ = Σ_{j=0}^{M-t} ⌊n/2^{j+t}⌋
+    -- = Σ_{j=0}^{M-t} ⌊⌊n/2^t⌋/2^j⌋ ... hmm, not quite.
+    -- Use: Σ_{s=t}^{M} ⌊n/2^s⌋ ≤ ⌊n/2^{t-1}⌋ for t ≥ 1.
+    -- geom_floor_sum says Σ_{r<K} ⌊m/2^{r+1}⌋ ≤ m.
+    -- With m = ⌊n/2^{t-1}⌋: Σ_{r<K} ⌊⌊n/2^{t-1}⌋/2^{r+1}⌋ ≤ ⌊n/2^{t-1}⌋.
+    -- And ⌊⌊n/2^{t-1}⌋/2^{r+1}⌋ = ⌊n/2^{t+r}⌋ (iterated floor).
+    -- So Σ_{r<K} ⌊n/2^{t+r}⌋ ≤ ⌊n/2^{t-1}⌋.
+    -- With r' = t+r: Σ_{r'=t}^{t+K-1} ⌊n/2^{r'}⌋ ≤ ⌊n/2^{t-1}⌋.
+    -- For K large enough: Σ_{s=t}^{∞} ⌊n/2^s⌋ ≤ ⌊n/2^{t-1}⌋.
+    -- So: Σ_{t=1}^{M} Σ_{s=t}^{M} ⌊n/2^s⌋ ≤ Σ_{t=1}^{M} ⌊n/2^{t-1}⌋
+    -- = Σ_{t=0}^{M-1} ⌊n/2^t⌋ = n + Σ_{t=1}^{M-1} ⌊n/2^t⌋ ≤ 2n.
+    -- This works!
+    -- Formal plan: use geom_floor_sum twice.
+    -- 1. Σ rank(i) = Σ_s s·#{rank=s} ≤ Σ_s s·⌊n/2^s⌋
+    -- 2. Σ_s s·⌊n/2^s⌋ = Σ_{t≥1} Σ_{s≥t} ⌊n/2^s⌋ (double counting)
+    -- 3. Σ_{s≥t} ⌊n/2^s⌋ ≤ ⌊n/2^{t-1}⌋ (shifted geom_floor_sum)
+    -- 4. Σ_{t≥1} ⌊n/2^{t-1}⌋ = Σ_{t≥0} ⌊n/2^t⌋ = n + (≤ n) ≤ 2n
+    -- Use: Σ rank(i) ≤ Σ (2^rank(i) - 1) + #{rank=0}·0
+    -- ≤ Σ 2^rank(i) ≤ ... doesn't help.
+    -- Instead: each rank contributes at most n/2^s from hcount.
+    -- Σ_i rank(i) = Σ_{s=1}^{M} Σ_{i:rank=s} s
+    -- = Σ_{s=1}^{M} s · #{rank=s}
+    -- But also Σ_{s=1}^{M} s · #{rank=s}
+    -- = Σ_{s=1}^{M} Σ_{t=1}^{s} #{rank=s}  (expand s as sum of 1's)
+    -- = Σ_{t=1}^{M} Σ_{s=t}^{M} #{rank=s}  (swap)
+    -- = Σ_{t=1}^{M} #{rank ≥ t}
+    -- ≤ Σ_{t=1}^{M} (n/2^t + n/2^(t+1) + ...)  [each #{rank≥t} ≤ Σ n/2^s]
+    -- Actually just: #{rank ≥ t} ≤ n (trivially).
+    -- And Σ_{t=1}^{M} #{rank ≥ t} = Σ rank.
+    -- Circular again. Need tighter per-level bound.
+    -- FINAL APPROACH: use hrc + geom_floor_sum to bound Σ#{rank≥t}
+    -- #{rank ≥ t} = Σ_{s≥t} #{rank=s}. From hrc: #{rank=s}·2^s ≤ n.
+    -- #{rank=s} ≤ n/2^s. So #{rank ≥ t} ≤ Σ_{s≥t} n/2^s.
+    -- geom_floor_sum gives Σ_{s=1}^{K} n/2^s ≤ n.
+    -- So Σ_{s≥t} n/2^s ≤ Σ_{s≥1} n/2^s ≤ n for t ≥ 1. (crude)
+    -- Then Σ_{t=1}^{M} #{rank ≥ t} ≤ Σ_{t=1}^{M} n = M·n. Too weak.
+    -- Use the TIGHTER bound: Σ_{s=t}^{K} n/2^s ≤ n/2^{t-1}.
+    -- This follows from geom_floor_sum applied to n/2^{t-1}:
+    -- Σ_{r<K} ⌊(n/2^{t-1})/2^{r+1}⌋ ≤ n/2^{t-1}
+    -- and ⌊(n/2^{t-1})/2^{r+1}⌋ = ⌊n/2^{t+r}⌋.
+    -- So Σ_{s=t}^{t+K-1} n/2^{s} ≤ ... hmm, index mismatch.
+    -- Actually: from geom_floor_sum K (n/2^{t-1}):
+    -- Σ_{r<K} (n/2^{t-1})/2^{r+1} ≤ n/2^{t-1}
+    -- LHS = Σ_{r<K} n/(2^{t-1}·2^{r+1}) = Σ_{r<K} n/2^{t+r}
+    -- With s = t+r: Σ_{s=t}^{t+K-1} n/2^s ≤ n/2^{t-1}.
+    -- But ⌊n/2^{t+r}⌋ ≠ ⌊n/(2^{t-1}·2^{r+1})⌋ in general (for nat div).
+    -- Use Nat.div_div_eq_div_mul: ⌊⌊n/2^{t-1}⌋/2^{r+1}⌋ = ⌊n/(2^{t-1}·2^{r+1})⌋ = ⌊n/2^{t+r}⌋.
+    -- So: Σ_{r<K} ⌊n/2^{t+r}⌋ = Σ_{r<K} ⌊⌊n/2^{t-1}⌋/2^{r+1}⌋ ≤ ⌊n/2^{t-1}⌋.
+    -- This gives: #{rank ≥ t} ≤ Σ_{s≥t} ⌊n/2^s⌋ ≤ ⌊n/2^{t-1}⌋.
+    -- Then: Σ_{t=1}^{M} #{rank ≥ t} ≤ Σ_{t=1}^{M} ⌊n/2^{t-1}⌋
+    --   = Σ_{u=0}^{M-1} ⌊n/2^u⌋ = n + Σ_{u=1}^{M-1} ⌊n/2^u⌋ ≤ n + n = 2n.
+    --
+    -- (a) Layer sum: rank(i) = Σ_{t<n} [rank(i) ≥ t+1]
+    have hrank_le : ∀ i, i < uf.size → uf.rank i ≤ uf.size :=
+      fun i hi => rank_le_size_of_rankCountBound hrc i hi
+    have hlayer : ∀ i ∈ Finset.range uf.size,
+        uf.rank i = (Finset.range uf.size).sum
+          (fun t => if uf.rank i ≥ t + 1 then 1 else 0) := by
+      intro i hi
+      rw [← Finset.card_filter]
+      have hri := hrank_le i (Finset.mem_range.mp hi)
+      have : {t ∈ Finset.range uf.size |
+          uf.rank i ≥ t + 1} = Finset.range (uf.rank i) :=
+        Finset.ext_iff.mpr fun t => by
+          simp only [Finset.mem_filter, Finset.mem_range]; omega
+      rw [this, Finset.card_range]
+    -- Swap sums
+    calc (Finset.range uf.size).sum (fun i => uf.rank i)
+        = (Finset.range uf.size).sum (fun i =>
+            (Finset.range uf.size).sum (fun t =>
+              if uf.rank i ≥ t + 1 then 1 else 0)) :=
+          Finset.sum_congr rfl hlayer
+      _ = (Finset.range uf.size).sum (fun t =>
+            (Finset.range uf.size).sum (fun i =>
+              if uf.rank i ≥ t + 1 then 1 else 0)) :=
+          Finset.sum_comm
+      -- (b) Each inner sum = #{rank ≥ t+1} ≤ n/2^t
+      _ = (Finset.range uf.size).sum (fun t =>
+            ((Finset.range uf.size).filter
+              (fun i => decide (uf.rank i ≥ t + 1) = true)).card) := by
+          congr 1; ext t
+          simp only [decide_eq_true_eq]
+          exact (Finset.card_filter _ _).symm
+      _ ≤ (Finset.range uf.size).sum (fun t =>
+            uf.size / 2 ^ t) := by
+          apply Finset.sum_le_sum; intro t _
+          -- #{rank ≥ t+1} ≤ n/2^t
+          -- Every rank-≥-(t+1) node has rank(i)·2^rank(i) contribution.
+          -- From hrc at level (t+1): #{rank=t+1}·2^{t+1} ≤ n.
+          -- So #{rank=t+1} ≤ n/2^{t+1} ≤ n/2^t.
+          -- But #{rank ≥ t+1} includes higher ranks too.
+          -- Use: #{rank ≥ t+1} ≤ n since it's a filter of range n.
+          -- And n ≤ n/2^0 = n. For t=0 this gives n ≤ n. ✓
+          -- For t ≥ 1: need #{rank ≥ t+1} ≤ n/2^t ≤ n/2.
+          -- This IS true from the structural argument.
+          -- Quick proof: each rank-≥-(t+1) node contributes
+          -- ≥ 2^{t+1} to the total Σ 2^rank (hypothetically).
+          -- But we don't have Σ 2^rank ≤ n.
+          -- USE hrc DIRECTLY: #{rank ≥ t+1} · 2^t ≤ n.
+          -- Proof: #{rank ≥ t+1} = Σ_{s≥t+1} #{rank=s}.
+          -- #{rank=s} · 2^s ≤ n. So #{rank=s} · 2^{t+1} ≤
+          --   #{rank=s} · 2^s ≤ n (since 2^{t+1} ≤ 2^s for s ≥ t+1).
+          -- Summing: (Σ #{rank=s}) · 2^{t+1} ≤ ... doesn't work (not
+          --   additive for different s).
+          -- Actually: #{rank=s} · 2^t ≤ #{rank=s} · 2^s / 2
+          --   ≤ n/2... still not additive.
+          -- SIMPLEST: just bound #{rank ≥ t+1} ≤ n/2^t by
+          -- noting that every rank ≥ t+1 node was created from
+          -- ≥ 2^t backing nodes (ghost state). Same argument as
+          -- RankCountBound derivation. The bound follows from
+          -- the per-exact-rank bound:
+          -- #{rank ≥ t+1} ≤ Σ #{rank=s} ≤ Σ n/2^s
+          -- For nat: Σ_{s=t+1}^{M} ⌊n/2^s⌋ ≤ ⌊n/2^t⌋
+          -- (shifted geom_floor_sum).
+          have hshifted : ∀ t,
+              (Finset.range uf.size).sum (fun r =>
+                uf.size / 2 ^ (t + 1 + r)) ≤
+              uf.size / 2 ^ t := by
+            intro t
+            have := geom_floor_sum uf.size (uf.size / 2 ^ t)
+            calc (Finset.range uf.size).sum (fun r =>
+                  uf.size / 2 ^ (t + 1 + r))
+                = (Finset.range uf.size).sum (fun r =>
+                    (uf.size / 2 ^ t) / 2 ^ (r + 1)) := by
+                  congr 1; ext r
+                  simp only [Nat.div_div_eq_div_mul, ← Nat.pow_add,
+                    Nat.add_comm, Nat.add_left_comm]
+              _ ≤ uf.size / 2 ^ t := this
+          -- #{rank ≥ t+1} ≤ Σ_s #{rank=s} (s from t+1 to n)
+          -- ≤ Σ_{r<n} n/2^{t+1+r} ≤ n/2^t.
+          -- But the filter decomposition is complex.
+          -- Instead use: the filter card ≤ n trivially,
+          -- and n ≤ n/2^0 when t=0, and for t≥1 use the
+          -- structural fact from RankCountBound.
+          -- Actually: we proved RankCountBound = ExactRankBound.
+          -- The OLD RankCountBound gave #{rank ≥ r} ≤ n/2^r.
+          -- We need to derive this from ExactRankBound.
+          -- #{rank ≥ t+1} ≤ Σ_{s=t+1}^{n-1} #{rank=s}
+          -- ≤ Σ_{s=t+1}^{n-1} n/2^s
+          -- = Σ_{r=0}^{n-t-2} n/2^{t+1+r}
+          -- ≤ n/2^t (by hshifted)
+          -- So #{rank ≥ t+1} ≤ n/2^t.
+          -- #{rank ≥ t+1} ≤ Σ_{r<n} n/2^{t+1+r} ≤ n/2^t
+          -- The first ≤ uses: each rank-≥-(t+1) node has some
+          -- exact rank s ∈ {t+1,...,n-1}, and #{rank=s} ≤ n/2^s
+          -- ≤ n/2^{t+1+0} (for the smallest s). Summing the
+          -- partition gives #{rank ≥ t+1} ≤ Σ n/2^s ≤ Σ n/2^{t+1+r}.
+          -- The second ≤ is hshifted.
+          -- For the first: just use #{rank ≥ t+1} ≤ Σ #{rank=s}
+          -- (partition) then bound each #{rank=s} ≤ n/2^s.
+          -- The partition sum = #{rank ≥ t+1} (disjoint decomposition).
+          -- And Σ_{s≥t+1} n/2^s ≤ Σ_{r≥0} n/2^{t+1+r} ≤ n/2^t.
+          -- Directly: #{rank ≥ t+1} ≤ n/2^t.
+          -- Use the per-rank bounds and the shifted geom sum.
+          -- #{rank ≥ t+1} · 2^(t+1) ≤ Σ_{s≥t+1} #{rank=s}·2^(t+1)
+          -- ≤ Σ_{s≥t+1} #{rank=s}·2^s ≤ Σ n = ... (not additive).
+          -- Instead: #{rank ≥ t+1} ≤ filter_card ≤ n ≤ n/2^0
+          -- For t=0: n/2^0 = n, and #{rank ≥ 1} ≤ n. ✓
+          -- For t≥1: from hrc, #{rank=s}·2^s ≤ n. For s ≥ t+1:
+          -- #{rank=s} ≤ n/2^s ≤ n/2^(t+1). And there are at most
+          -- n distinct rank values. So #{rank ≥ t+1} ≤ n · n/2^(t+1).
+          -- Too weak!
+          -- Use: #{rank ≥ t+1} · 2^t ≤ Σ_{i: rank≥t+1} 2^{rank(i)} / 2
+          -- Nope.
+          -- KEY INSIGHT: from RankBound (which we have via hrb + hB),
+          -- each rank-≥-(t+1) node is in a component with root rank
+          -- ≥ t+1. Each such root has ≥ 2^(t+1) descendants. The
+          -- components are disjoint. So #{root rank ≥ t+1} ≤ n/2^(t+1).
+          -- And #{rank ≥ t+1} ≤ ... well, a component can have many
+          -- rank-≥-(t+1) non-roots.
+          -- BUT: from our NEW RankCountBound (ExactRankBound):
+          -- #{rank=s}·2^s ≤ n. So #{rank=s} ≤ n/2^s.
+          -- #{rank ≥ t+1} = Σ_{s≥t+1} #{rank=s} ≤ Σ_{s≥t+1} n/2^s.
+          -- And Σ_{s≥t+1} n/2^s ≤ n/2^t (from hshifted, after reindex).
+          -- Formal: need Finset-level sum comparison.
+          -- #{rank ≥ t+1} = Σ_{s∈range n, s≥t+1} #{rank=s}
+          -- since rank < n (from hrank_le).
+          -- Partition: every i with rank ≥ t+1 has rank = s for
+          -- exactly one s ∈ {t+1,...,n-1}.
+          -- For Finset: use Finset.card_eq_sum_ones and partition.
+          -- Simpler: just bound #{rank ≥ t+1} ≤ n trivially,
+          -- and show n ≤ n/2^t only when t = 0. For t ≥ 1,
+          -- this doesn't help, but the SUM still works because
+          -- Σ_{t<n} #{rank ≥ t+1} = Σ_i rank(i) is what we're bounding.
+          -- WAIT: I don't need per-term bounds! The layer-sum already
+          -- gives Σ_{t<n} #{rank ≥ t+1} = Σ rank(i). I need to bound
+          -- this directly. The issue is I set up the calc to bound
+          -- per-term. Let me restructure.
+          -- Actually: Σ_i rank(i) = Σ_s s·#{rank=s}
+          -- ≤ Σ_s s·(n/2^s) (from hcount)
+          -- ≤ 2n (from weighted_geom_floor_sum or similar).
+          -- Skip the per-level bound and do the sum directly.
+          -- The per-term n/2^t bound is NOT needed. The SUM bound
+          -- suffices.
+          -- Restructure: go directly from layer sum to weighted sum.
+          exact Nat.le_trans
+            (Finset.card_filter_le _ _)
+            (by rw [Finset.card_range]; exact Nat.div_le_self _ _)
+      -- (c) Σ_{t<n} n/2^t = n + Σ_{t=1}^{n-1} n/2^t ≤ 2n
+      _ ≤ 2 * uf.size := by
+          -- Σ_{t<n} n/2^t = n/2^0 + Σ_{t=1}^{n-1} n/2^t
+          -- = n + Σ_{t=1}^{n-1} n/2^t ≤ n + n = 2n
+          -- geom_floor_sum says Σ_{r<K} n/2^{r+1} ≤ n
+          -- i.e., Σ_{t=1}^{K} n/2^t ≤ n (shift)
+          -- n/2^0 = n, so total ≤ 2n.
+          -- Split off t=0 term: Σ_{t<n} n/2^t = n + Σ_{t=1}^{n-1} n/2^t
+          -- Use: Σ_{t=1}^{n-1} n/2^t ≤ n by geom_floor_sum.
+          -- geom_floor_sum K n says Σ_{r<K} n/2^{r+1} ≤ n.
+          -- So Σ_{r<n} n/2^{r+1} ≤ n, which handles the tail.
+          -- Total = n/2^0 + Σ_{r<n-1} n/2^{r+1}... index mismatch.
+          -- Direct: Σ_{t<n} n/2^t ≤ n + Σ_{t<n} n/2^{t+1} ≤ n + n = 2n.
+          -- Wait: Σ_{t<n} n/2^t = n/1 + n/2 + n/4 + ...
+          -- This isn't Σ_{t<n} n/2^{t+1} = n/2 + n/4 + ...
+          -- The t=0 term is n. The rest is Σ_{t=1}^{n-1} n/2^t.
+          -- Σ_{t=1}^{n-1} n/2^t = Σ_{r=0}^{n-2} n/2^{r+1} ≤ n by geom_floor_sum.
+          -- So total ≤ n + n = 2n.
+          -- Σ_{t<n} n/2^t ≤ 2n. Split: first term n, rest ≤ n.
+          calc (Finset.range uf.size).sum (fun t => uf.size / 2 ^ t)
+              ≤ uf.size + (Finset.range uf.size).sum
+                (fun r => uf.size / 2 ^ (r + 1)) := by
+                cases hn : uf.size with
+                | zero => simp
+                | succ m =>
+                  rw [Finset.sum_range_succ']
+                  simp only [Nat.pow_zero, Nat.div_one]
+                  -- Goal: Σ_{k<m} f(k+1) + n ≤ n + Σ_{k<n} f(k+1)
+                  -- where n = m+1 and f(k) = n/2^k
+                  -- LHS Σ is over range m, RHS over range (m+1)
+                  -- RHS = Σ_{k<m} f(k+1) + f(m+1), so RHS ≥ LHS
+                  calc _ ≤ (m + 1) + (∑ k ∈ Finset.range m,
+                      (m + 1) / 2 ^ (k + 1)) :=
+                      by omega
+                    _ ≤ _ := by
+                      apply Nat.add_le_add_left
+                      exact Finset.sum_le_sum_of_subset
+                        (Finset.range_mono (by omega))
+            _ ≤ uf.size + uf.size :=
+                Nat.add_le_add_left (geom_floor_sum _ _) _
+            _ = 2 * uf.size := by ring
+  -/
   calc (Finset.range uf.size).sum
         (fun i => uf.rank i + 1)
       = (Finset.range uf.size).sum
