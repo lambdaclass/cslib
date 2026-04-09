@@ -142,7 +142,7 @@ theorem find_preserves_rootOf (uf : UF n) (x y : Fin n) :
 Attaches the lower-ranked root under the higher-ranked one.
 On equal rank, attaches `ry` under `rx` and increments `rx`'s rank. -/
 def link (uf : UF n) (rx ry : Fin n)
-    (hx : uf.isRoot rx) (hy : uf.isRoot ry)
+    (hx : uf.isRoot rx)
     (hne : rx ≠ ry) : UF n :=
   if h : uf.rank rx < uf.rank ry then
     { parent := fun z => if z = rx then ry else uf.parent z
@@ -204,8 +204,7 @@ def union (uf : UF n) (x y : Fin n) : TimeM ℕ (UF n) :=
     ⟨uf₂, res₁.time + res₂.time⟩
   else
     have hx : uf₂.isRoot rx := find_preserves_roots uf₁ y rx (find_ret_isRoot uf x)
-    have hy : uf₂.isRoot ry := find_ret_isRoot uf₁ y
-    ⟨link uf₂ rx ry hx hy h, res₁.time + res₂.time⟩
+    ⟨link uf₂ rx ry hx h, res₁.time + res₂.time⟩
 
 /-- An operation on a union-find of `n` elements. -/
 inductive Op (n : ℕ) where
