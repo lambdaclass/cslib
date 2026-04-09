@@ -81,18 +81,18 @@ def findAux (uf : UF n) (x : Fin n) :
       rw [h_rootOf x]
       conv_lhs => rw [UF.rootOf]; simp [h]
       exact h_root_eq.symm
-    ⟨⟨(root, uf'.setParent x root h_rank), 1 + ih.val.time⟩,
-     by change (uf'.setParent x root h_rank).rank = uf.rank
+    ⟨⟨(root, uf'.setParent x root h_rank h_root_in_uf'), 1 + ih.val.time⟩,
+     by change (uf'.setParent x root h_rank h_root_in_uf').rank = uf.rank
         rw [UF.setParent_rank]; exact h_rank_eq,
      by change root = uf.rootOf x
         rw [h_root_eq, UF.rootOf_parent uf x h],
      fun y hy => by
-        change (uf'.setParent x root h_rank).isRoot y
+        change (uf'.setParent x root h_rank h_root_in_uf').isRoot y
         by_cases hyx : y = x
         · exfalso; rw [hyx] at hy; exact h hy
-        · exact UF.setParent_isRoot_of_ne uf' x root h_rank y (h_pres y hy) hyx,
+        · exact UF.setParent_isRoot_of_ne uf' x root h_rank h_root_in_uf' y (h_pres y hy) hyx,
      fun y => by
-        change (uf'.setParent x root h_rank).rootOf y = uf.rootOf y
+        change (uf'.setParent x root h_rank h_root_in_uf').rootOf y = uf.rootOf y
         rw [UF.setParent_preserves_rootOf uf' x root h_rank h_root_in_uf' y]
         exact h_rootOf y⟩
 termination_by uf.rankMax - uf.rank x

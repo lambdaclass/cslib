@@ -221,40 +221,40 @@ nodes". -/
 can only increase. -/
 private theorem level_le_of_setParent_self (uf : UF n) (x r : Fin n)
     (hx : ¬uf.isRoot x) (hr : 1 ≤ uf.rank x)
-    (h_rank : uf.rank x < uf.rank r)
+    (h_rank : uf.rank x < uf.rank r) (h_root : uf.rootOf x = r)
     (hpr : uf.rank (uf.parent x) ≤ uf.rank r)
-    (hx' : ¬(uf.setParent x r h_rank).isRoot x)
-    (hr' : 1 ≤ (uf.setParent x r h_rank).rank x) :
-    level uf x hx hr ≤ level (uf.setParent x r h_rank) x hx' hr' := by
+    (hx' : ¬(uf.setParent x r h_rank h_root).isRoot x)
+    (hr' : 1 ≤ (uf.setParent x r h_rank h_root).rank x) :
+    level uf x hx hr ≤ level (uf.setParent x r h_rank h_root) x hx' hr' := by
   have hconv :
       ∀ k,
-        (¬A k ((uf.setParent x r h_rank).rank x) ≤
-            (uf.setParent x r h_rank).rank ((uf.setParent x r h_rank).parent x)) →
+        (¬A k ((uf.setParent x r h_rank h_root).rank x) ≤
+            (uf.setParent x r h_rank h_root).rank ((uf.setParent x r h_rank h_root).parent x)) →
         (¬A k (uf.rank x) ≤ uf.rank (uf.parent x)) := by
     intro k hk h
     apply hk
     simpa [UF.setParent] using le_trans h hpr
   have hfind_le :
       Nat.find (exists_level uf x hx hr) ≤
-      Nat.find (exists_level (uf.setParent x r h_rank) x hx' hr') := by
+      Nat.find (exists_level (uf.setParent x r h_rank h_root) x hx' hr') := by
     exact Nat.find_mono hconv
   unfold level
   omega
 
 private theorem iter_le_of_setParent_self_same_level (uf : UF n) (x r : Fin n)
     (hx : ¬uf.isRoot x) (hr : 1 ≤ uf.rank x)
-    (h_rank : uf.rank x < uf.rank r)
+    (h_rank : uf.rank x < uf.rank r) (h_root : uf.rootOf x = r)
     (hpr : uf.rank (uf.parent x) ≤ uf.rank r)
-    (hx' : ¬(uf.setParent x r h_rank).isRoot x)
-    (hr' : 1 ≤ (uf.setParent x r h_rank).rank x)
+    (hx' : ¬(uf.setParent x r h_rank h_root).isRoot x)
+    (hr' : 1 ≤ (uf.setParent x r h_rank h_root).rank x)
     (hlevel :
-      level (uf.setParent x r h_rank) x hx' hr' = level uf x hx hr) :
-    iter uf x hx hr ≤ iter (uf.setParent x r h_rank) x hx' hr' := by
+      level (uf.setParent x r h_rank h_root) x hx' hr' = level uf x hx hr) :
+    iter uf x hx hr ≤ iter (uf.setParent x r h_rank h_root) x hx' hr' := by
   have hconv :
       ∀ i,
-        (¬iterFn (A (level (uf.setParent x r h_rank) x hx' hr')) (i + 1)
-            ((uf.setParent x r h_rank).rank x) ≤
-          (uf.setParent x r h_rank).rank ((uf.setParent x r h_rank).parent x)) →
+        (¬iterFn (A (level (uf.setParent x r h_rank h_root) x hx' hr')) (i + 1)
+            ((uf.setParent x r h_rank h_root).rank x) ≤
+          (uf.setParent x r h_rank h_root).rank ((uf.setParent x r h_rank h_root).parent x)) →
         (¬iterFn (A (level uf x hx hr)) (i + 1) (uf.rank x) ≤
           uf.rank (uf.parent x)) := by
     intro i hi h
@@ -267,15 +267,15 @@ private theorem iter_le_of_setParent_self_same_level (uf : UF n) (x r : Fin n)
 
 private theorem iter_succ_le_of_setParent_self_same_level (uf : UF n) (x r : Fin n)
     (hx : ¬uf.isRoot x) (hr : 1 ≤ uf.rank x)
-    (h_rank : uf.rank x < uf.rank r)
+    (h_rank : uf.rank x < uf.rank r) (h_root : uf.rootOf x = r)
     (hpr : uf.rank (uf.parent x) ≤ uf.rank r)
-    (hx' : ¬(uf.setParent x r h_rank).isRoot x)
-    (hr' : 1 ≤ (uf.setParent x r h_rank).rank x)
+    (hx' : ¬(uf.setParent x r h_rank h_root).isRoot x)
+    (hr' : 1 ≤ (uf.setParent x r h_rank h_root).rank x)
     (hlevel :
-      level (uf.setParent x r h_rank) x hx' hr' = level uf x hx hr)
+      level (uf.setParent x r h_rank h_root) x hx' hr' = level uf x hx hr)
     (hextra :
       iterFn (A (level uf x hx hr)) (iter uf x hx hr + 1) (uf.rank x) ≤ uf.rank r) :
-    iter uf x hx hr + 1 ≤ iter (uf.setParent x r h_rank) x hx' hr' := by
+    iter uf x hx hr + 1 ≤ iter (uf.setParent x r h_rank h_root) x hx' hr' := by
   have hold :
       ∀ m < iter uf x hx hr,
         iterFn (A (level uf x hx hr)) (m + 1) (uf.rank x) ≤ uf.rank (uf.parent x) := by
@@ -328,60 +328,60 @@ increase `phi(x)`. The proof case-splits on whether `level` stays the same
 coefficient shrinks enough to compensate). -/
 private theorem phi_setParent_self_le (uf : UF n) (x r : Fin n)
     (hx : ¬uf.isRoot x) (hr : 1 ≤ uf.rank x)
-    (h_rank : uf.rank x < uf.rank r)
+    (h_rank : uf.rank x < uf.rank r) (h_root : uf.rootOf x = r)
     (hpr : uf.rank (uf.parent x) ≤ uf.rank r)
     (hnr : uf.rank r < n) :
-    phi (uf.setParent x r h_rank) x ≤ phi uf x := by
+    phi (uf.setParent x r h_rank h_root) x ≤ phi uf x := by
   have hne : x ≠ r := by
     intro h
     subst h
     omega
-  have hx' : ¬(uf.setParent x r h_rank).isRoot x := by
+  have hx' : ¬(uf.setParent x r h_rank h_root).isRoot x := by
     rw [UF.isRoot, UF.setParent]
     simpa using hne.symm
-  have hr' : 1 ≤ (uf.setParent x r h_rank).rank x := by
+  have hr' : 1 ≤ (uf.setParent x r h_rank h_root).rank x := by
     simpa [UF.setParent] using hr
   have hr0 : uf.rank x ≠ 0 := by omega
-  have hr0' : (uf.setParent x r h_rank).rank x ≠ 0 := by
+  have hr0' : (uf.setParent x r h_rank h_root).rank x ≠ 0 := by
     simpa [UF.setParent] using hr0
-  have hlevel_le := level_le_of_setParent_self uf x r hx hr h_rank hpr hx' hr'
+  have hlevel_le := level_le_of_setParent_self uf x r hx hr h_rank h_root hpr hx' hr'
   have hold_lt : uf.rank (uf.parent x) < n := lt_of_le_of_lt hpr hnr
   simp only [phi, hx, hx', hr0, hr0', dite_false]
   by_cases hlevel_eq :
-      level (uf.setParent x r h_rank) x hx' hr' = level uf x hx hr
+      level (uf.setParent x r h_rank h_root) x hx' hr' = level uf x hx hr
   · have hiter_le :=
-      iter_le_of_setParent_self_same_level uf x r hx hr h_rank hpr hx' hr' hlevel_eq
+      iter_le_of_setParent_self_same_level uf x r hx hr h_rank h_root hpr hx' hr' hlevel_eq
     calc
-      (alpha n - level (uf.setParent x r h_rank) x hx' hr') *
-            (uf.setParent x r h_rank).rank x -
-          iter (uf.setParent x r h_rank) x hx' hr'
+      (alpha n - level (uf.setParent x r h_rank h_root) x hx' hr') *
+            (uf.setParent x r h_rank h_root).rank x -
+          iter (uf.setParent x r h_rank h_root) x hx' hr'
         = (alpha n - level uf x hx hr) * uf.rank x -
-            iter (uf.setParent x r h_rank) x hx' hr' := by
+            iter (uf.setParent x r h_rank h_root) x hx' hr' := by
             rw [hlevel_eq]
             simp [UF.setParent]
       _ ≤ (alpha n - level uf x hx hr) * uf.rank x - iter uf x hx hr :=
         Nat.sub_le_sub_left hiter_le _
   · have hlevel_gt : level uf x hx hr + 1 ≤
-        level (uf.setParent x r h_rank) x hx' hr' := by
+        level (uf.setParent x r h_rank h_root) x hx' hr' := by
       omega
-    have hiter'_ge : 1 ≤ iter (uf.setParent x r h_rank) x hx' hr' := by
-      exact one_le_iter (uf.setParent x r h_rank) x hx' hr'
+    have hiter'_ge : 1 ≤ iter (uf.setParent x r h_rank h_root) x hx' hr' := by
+      exact one_le_iter (uf.setParent x r h_rank h_root) x hx' hr'
     have hphi_lb :
         (alpha n - level uf x hx hr - 1) * uf.rank x ≤
           (alpha n - level uf x hx hr) * uf.rank x - iter uf x hx hr := by
       simpa [phi, hx, hr0] using phi_lower_bound_of_positive_nonroot uf x hx hr hold_lt
     have h_alpha_sub :
-        alpha n - level (uf.setParent x r h_rank) x hx' hr' ≤
+        alpha n - level (uf.setParent x r h_rank h_root) x hx' hr' ≤
           alpha n - level uf x hx hr - 1 := by
       omega
     calc
-      (alpha n - level (uf.setParent x r h_rank) x hx' hr') *
-            (uf.setParent x r h_rank).rank x -
-          iter (uf.setParent x r h_rank) x hx' hr'
-        ≤ (alpha n - level (uf.setParent x r h_rank) x hx' hr') *
-            (uf.setParent x r h_rank).rank x := Nat.sub_le _ _
+      (alpha n - level (uf.setParent x r h_rank h_root) x hx' hr') *
+            (uf.setParent x r h_rank h_root).rank x -
+          iter (uf.setParent x r h_rank h_root) x hx' hr'
+        ≤ (alpha n - level (uf.setParent x r h_rank h_root) x hx' hr') *
+            (uf.setParent x r h_rank h_root).rank x := Nat.sub_le _ _
       _ ≤ (alpha n - level uf x hx hr - 1) *
-            (uf.setParent x r h_rank).rank x :=
+            (uf.setParent x r h_rank h_root).rank x :=
           Nat.mul_le_mul_right _ h_alpha_sub
       _ = (alpha n - level uf x hx hr - 1) * uf.rank x := by
           simp [UF.setParent]
@@ -396,41 +396,42 @@ The `hextra` condition is provided by `hextra_of_mem_interiorLevels` when a
 deeper node on the find path shares the same level as `x`. -/
 private theorem phi_setParent_self_drop (uf : UF n) (x r : Fin n)
     (hx : ¬uf.isRoot x) (hr : 1 ≤ uf.rank x)
-    (h_rank : uf.rank x < uf.rank r)
+    (h_rank : uf.rank x < uf.rank r) (h_root : uf.rootOf x = r)
     (hpr : uf.rank (uf.parent x) ≤ uf.rank r)
     (hnr : uf.rank r < n)
     (hextra :
       iterFn (A (level uf x hx hr)) (iter uf x hx hr + 1) (uf.rank x) ≤ uf.rank r) :
-    phi (uf.setParent x r h_rank) x + 1 ≤ phi uf x := by
+    phi (uf.setParent x r h_rank h_root) x + 1 ≤ phi uf x := by
   have hne : x ≠ r := by
     intro h
     subst h
     omega
-  have hx' : ¬(uf.setParent x r h_rank).isRoot x := by
+  have hx' : ¬(uf.setParent x r h_rank h_root).isRoot x := by
     rw [UF.isRoot, UF.setParent]
     simpa using hne.symm
-  have hr' : 1 ≤ (uf.setParent x r h_rank).rank x := by
+  have hr' : 1 ≤ (uf.setParent x r h_rank h_root).rank x := by
     simpa [UF.setParent] using hr
   have hr0 : uf.rank x ≠ 0 := by omega
-  have hr0' : (uf.setParent x r h_rank).rank x ≠ 0 := by
+  have hr0' : (uf.setParent x r h_rank h_root).rank x ≠ 0 := by
     simpa [UF.setParent] using hr0
-  have hlevel_le := level_le_of_setParent_self uf x r hx hr h_rank hpr hx' hr'
+  have hlevel_le := level_le_of_setParent_self uf x r hx hr h_rank h_root hpr hx' hr'
   have hold_lt : uf.rank (uf.parent x) < n := lt_of_le_of_lt hpr hnr
   simp only [phi, hx, hx', hr0, hr0', dite_false]
   by_cases hlevel_eq :
-      level (uf.setParent x r h_rank) x hx' hr' = level uf x hx hr
+      level (uf.setParent x r h_rank h_root) x hx' hr' = level uf x hx hr
   · have hiter_succ :=
       iter_succ_le_of_setParent_self_same_level
-        uf x r hx hr h_rank hpr hx' hr' hlevel_eq hextra
+        uf x r hx hr h_rank h_root hpr hx' hr' hlevel_eq hextra
     have hbase_nontrunc :
         iter uf x hx hr + 1 ≤ (alpha n - level uf x hx hr) * uf.rank x := by
       have hiter'_le_rank :
-          iter (uf.setParent x r h_rank) x hx' hr' ≤ (uf.setParent x r h_rank).rank x := by
-        exact iter_le_rank (uf.setParent x r h_rank) x hx' hr'
+          iter (uf.setParent x r h_rank h_root) x hx' hr' ≤
+            (uf.setParent x r h_rank h_root).rank x := by
+        exact iter_le_rank (uf.setParent x r h_rank h_root) x hx' hr'
       have hiter_succ_rank : iter uf x hx hr + 1 ≤ uf.rank x := by
         calc
-          iter uf x hx hr + 1 ≤ iter (uf.setParent x r h_rank) x hx' hr' := hiter_succ
-          _ ≤ (uf.setParent x r h_rank).rank x := hiter'_le_rank
+          iter uf x hx hr + 1 ≤ iter (uf.setParent x r h_rank h_root) x hx' hr' := hiter_succ
+          _ ≤ (uf.setParent x r h_rank h_root).rank x := hiter'_le_rank
           _ = uf.rank x := by simp [UF.setParent]
       have hcoeff : 1 ≤ alpha n - level uf x hx hr := by
         have hlt := level_lt_alpha uf x hx hr hold_lt
@@ -441,14 +442,14 @@ private theorem phi_setParent_self_drop (uf : UF n) (x r : Fin n)
         _ ≤ (alpha n - level uf x hx hr) * uf.rank x :=
           Nat.mul_le_mul_right _ hcoeff
     have hsub :
-        (alpha n - level (uf.setParent x r h_rank) x hx' hr') *
-              (uf.setParent x r h_rank).rank x -
-            iter (uf.setParent x r h_rank) x hx' hr' + 1
+        (alpha n - level (uf.setParent x r h_rank h_root) x hx' hr') *
+              (uf.setParent x r h_rank h_root).rank x -
+            iter (uf.setParent x r h_rank h_root) x hx' hr' + 1
           ≤ (alpha n - level uf x hx hr) * uf.rank x - iter uf x hx hr := by
       rw [hlevel_eq]
       simp only [UF.setParent]
       set B := (alpha n - level uf x hx hr) * uf.rank x
-      have htmp : B - iter (uf.setParent x r h_rank) x hx' hr' + 1 ≤
+      have htmp : B - iter (uf.setParent x r h_rank h_root) x hx' hr' + 1 ≤
           B - (iter uf x hx hr + 1) + 1 := by
         exact Nat.add_le_add_right (Nat.sub_le_sub_left hiter_succ B) 1
       have htmp2 : B - (iter uf x hx hr + 1) + 1 = B - iter uf x hx hr := by
@@ -456,55 +457,55 @@ private theorem phi_setParent_self_drop (uf : UF n) (x r : Fin n)
       exact htmp.trans_eq htmp2
     exact hsub
   · have hlevel_gt : level uf x hx hr + 1 ≤
-        level (uf.setParent x r h_rank) x hx' hr' := by
+        level (uf.setParent x r h_rank h_root) x hx' hr' := by
       omega
-    have hiter'_ge : 1 ≤ iter (uf.setParent x r h_rank) x hx' hr' := by
-      exact one_le_iter (uf.setParent x r h_rank) x hx' hr'
+    have hiter'_ge : 1 ≤ iter (uf.setParent x r h_rank h_root) x hx' hr' := by
+      exact one_le_iter (uf.setParent x r h_rank h_root) x hx' hr'
     have hphi_lb :
         (alpha n - level uf x hx hr - 1) * uf.rank x ≤
           (alpha n - level uf x hx hr) * uf.rank x - iter uf x hx hr := by
       simpa [phi, hx, hr0] using phi_lower_bound_of_positive_nonroot uf x hx hr hold_lt
     have h_alpha_sub :
-        alpha n - level (uf.setParent x r h_rank) x hx' hr' ≤
+        alpha n - level (uf.setParent x r h_rank h_root) x hx' hr' ≤
           alpha n - level uf x hx hr - 1 := by
       have hsub :=
         Nat.sub_le_sub_left hlevel_gt (alpha n)
       omega
     have hupper :
-        (alpha n - level (uf.setParent x r h_rank) x hx' hr') *
-              (uf.setParent x r h_rank).rank x -
-            iter (uf.setParent x r h_rank) x hx' hr' + 1
+        (alpha n - level (uf.setParent x r h_rank h_root) x hx' hr') *
+              (uf.setParent x r h_rank h_root).rank x -
+            iter (uf.setParent x r h_rank h_root) x hx' hr' + 1
           ≤ (alpha n - level uf x hx hr - 1) * uf.rank x := by
-      set B := (alpha n - level (uf.setParent x r h_rank) x hx' hr') *
-        (uf.setParent x r h_rank).rank x
-      have hcoeff : 1 ≤ alpha n - level (uf.setParent x r h_rank) x hx' hr' := by
+      set B := (alpha n - level (uf.setParent x r h_rank h_root) x hx' hr') *
+        (uf.setParent x r h_rank h_root).rank x
+      have hcoeff : 1 ≤ alpha n - level (uf.setParent x r h_rank h_root) x hx' hr' := by
         have hlt :=
-          level_lt_alpha (uf.setParent x r h_rank) x hx' hr'
+          level_lt_alpha (uf.setParent x r h_rank h_root) x hx' hr'
             (by simpa [UF.setParent] using hnr)
         omega
       have hB_pos : 1 ≤ B := by
         dsimp [B]
         calc
           1 = 1 * 1 := by simp
-          _ ≤ (alpha n - level (uf.setParent x r h_rank) x hx' hr') *
-                (uf.setParent x r h_rank).rank x :=
+          _ ≤ (alpha n - level (uf.setParent x r h_rank h_root) x hx' hr') *
+                (uf.setParent x r h_rank h_root).rank x :=
             Nat.mul_le_mul hcoeff hr'
       have :
-          B - iter (uf.setParent x r h_rank) x hx' hr' + 1 ≤ B := by
+          B - iter (uf.setParent x r h_rank h_root) x hx' hr' + 1 ≤ B := by
         have htmp :
-            B - iter (uf.setParent x r h_rank) x hx' hr' + 1 ≤ B - 1 + 1 := by
+            B - iter (uf.setParent x r h_rank h_root) x hx' hr' + 1 ≤ B - 1 + 1 := by
           exact Nat.add_le_add_right
             (Nat.sub_le_sub_left hiter'_ge B) 1
         have htmp2 : B - 1 + 1 = B := Nat.sub_add_cancel hB_pos
         exact htmp.trans_eq htmp2
       calc
-        (alpha n - level (uf.setParent x r h_rank) x hx' hr') *
-              (uf.setParent x r h_rank).rank x -
-            iter (uf.setParent x r h_rank) x hx' hr' + 1
-          = B - iter (uf.setParent x r h_rank) x hx' hr' + 1 := by rfl
+        (alpha n - level (uf.setParent x r h_rank h_root) x hx' hr') *
+              (uf.setParent x r h_rank h_root).rank x -
+            iter (uf.setParent x r h_rank h_root) x hx' hr' + 1
+          = B - iter (uf.setParent x r h_rank h_root) x hx' hr' + 1 := by rfl
         _ ≤ B := this
         _ ≤ (alpha n - level uf x hx hr - 1) *
-              (uf.setParent x r h_rank).rank x := by
+              (uf.setParent x r h_rank h_root).rank x := by
           dsimp [B]
           exact Nat.mul_le_mul_right _ h_alpha_sub
         _ = (alpha n - level uf x hx hr - 1) * uf.rank x := by
@@ -842,32 +843,32 @@ private theorem phi_eq_of_same_data (uf uf' : UF n) (z : Fin n)
       simp only [hr, hlevel, hiter]
 
 private theorem phi_setParent_eq_of_ne (uf : UF n) (x r z : Fin n)
-    (h_rank : uf.rank x < uf.rank r) (hzx : z ≠ x) :
-    phi (uf.setParent x r h_rank) z = phi uf z := by
-  have hp : (uf.setParent x r h_rank).parent z = uf.parent z := by
+    (h_rank : uf.rank x < uf.rank r) (h_root : uf.rootOf x = r) (hzx : z ≠ x) :
+    phi (uf.setParent x r h_rank h_root) z = phi uf z := by
+  have hp : (uf.setParent x r h_rank h_root).parent z = uf.parent z := by
     simp [UF.setParent, hzx]
-  have hr : (uf.setParent x r h_rank).rank z = uf.rank z := by
+  have hr : (uf.setParent x r h_rank h_root).rank z = uf.rank z := by
     simp [UF.setParent]
-  have hrp : (uf.setParent x r h_rank).rank ((uf.setParent x r h_rank).parent z) =
+  have hrp : (uf.setParent x r h_rank h_root).rank ((uf.setParent x r h_rank h_root).parent z) =
       uf.rank (uf.parent z) := by
     rw [hp]
     simp [UF.setParent]
-  exact phi_eq_of_same_data uf (uf.setParent x r h_rank) z hp hr hrp
+  exact phi_eq_of_same_data uf (uf.setParent x r h_rank h_root) z hp hr hrp
 
 private theorem Phi_setParent (uf : UF n) (x r : Fin n)
-    (h_rank : uf.rank x < uf.rank r) :
-    Phi (uf.setParent x r h_rank) =
-      Phi uf - phi uf x + phi (uf.setParent x r h_rank) x := by
+    (h_rank : uf.rank x < uf.rank r) (h_root : uf.rootOf x = r) :
+    Phi (uf.setParent x r h_rank h_root) =
+      Phi uf - phi uf x + phi (uf.setParent x r h_rank h_root) x := by
   unfold Phi
   have hx_mem : x ∈ Finset.univ := Finset.mem_univ x
-  rw [← Finset.add_sum_erase Finset.univ (phi (uf.setParent x r h_rank)) hx_mem]
+  rw [← Finset.add_sum_erase Finset.univ (phi (uf.setParent x r h_rank h_root)) hx_mem]
   rw [← Finset.add_sum_erase Finset.univ (phi uf) hx_mem]
   have hrest :
-      ∑ z ∈ Finset.univ.erase x, phi (uf.setParent x r h_rank) z =
+      ∑ z ∈ Finset.univ.erase x, phi (uf.setParent x r h_rank h_root) z =
       ∑ z ∈ Finset.univ.erase x, phi uf z := by
     apply Finset.sum_congr rfl
     intro z hz
-    exact phi_setParent_eq_of_ne uf x r z h_rank (Finset.ne_of_mem_erase hz)
+    exact phi_setParent_eq_of_ne uf x r z h_rank h_root (Finset.ne_of_mem_erase hz)
   rw [hrest]
   omega
 
@@ -1211,9 +1212,10 @@ private theorem find_time_step (uf : UF n) (x : Fin n) (hx : uf.parent x ≠ x) 
 /-- Helper: find's result is setParent of the recursive result. -/
 private theorem find_ret2_step (uf : UF n) (x : Fin n) (hx : uf.parent x ≠ x)
     (h : ⟪find uf (uf.parent x)⟫.2.rank x <
-         ⟪find uf (uf.parent x)⟫.2.rank ⟪find uf (uf.parent x)⟫.1) :
+         ⟪find uf (uf.parent x)⟫.2.rank ⟪find uf (uf.parent x)⟫.1)
+    (hr : ⟪find uf (uf.parent x)⟫.2.rootOf x = ⟪find uf (uf.parent x)⟫.1) :
     ⟪find uf x⟫.2 = ⟪find uf (uf.parent x)⟫.2.setParent x
-      ⟪find uf (uf.parent x)⟫.1 h := by
+      ⟪find uf (uf.parent x)⟫.1 h hr := by
   unfold find; conv_lhs => unfold findAux; simp [hx]
 
 /-- The amortized cost of find is bounded by the findBudget.
@@ -1245,14 +1247,16 @@ private theorem find_Phi_le_budget (uf : UF n) (x : Fin n)
     -- Rank condition for setParent
     have h_rank : uf'.rank x < uf'.rank root := by
       simp only [h_rank_eq, hroot_eq]; exact rank_lt_rootOf uf x hx
+    have h_root_uf' : uf'.rootOf x = root := by
+      rw [huf'_def, find_preserves_rootOf uf (uf.parent x) x, hroot_eq]
     -- Time and result equations
-    rw [find_time_step uf x hx, find_ret2_step uf x hx h_rank]
+    rw [find_time_step uf x hx, find_ret2_step uf x hx h_rank h_root_uf']
     -- Inductive hypothesis
     have ih : (find uf (uf.parent x)).time + Phi uf' ≤
               Phi uf + findBudget uf (uf.parent x) :=
       find_Phi_le_budget uf (uf.parent x) hn
     -- Phi decomposition: Phi(setParent) = Phi(uf') - phi(uf',x) + phi(setParent,x)
-    rw [Phi_setParent uf' x root h_rank]
+    rw [Phi_setParent uf' x root h_rank h_root_uf']
     -- phi(uf', x) = phi(uf, x) since parent and rank of x are preserved
     have hrp : uf'.rank (uf'.parent x) = uf.rank (uf.parent x) := by
       rw [h_parent_pres]; exact congrFun h_rank_eq (uf.parent x)
@@ -1273,7 +1277,7 @@ private theorem find_Phi_le_budget (uf : UF n) (x : Fin n)
     · -- Rank 0: budget increases by 1, phi stays 0
       rw [findBudget_rank_zero uf x hx_root hr0]
       have hphi0 : phi uf x = 0 := phi_nonroot_rank_zero uf x hx_root hr0
-      have hphi0' : phi (uf'.setParent x root h_rank) x = 0 := by
+      have hphi0' : phi (uf'.setParent x root h_rank h_root_uf') x = 0 := by
         apply phi_nonroot_rank_zero
         · simp only [UF.isRoot, UF.setParent]
           exact fun h => absurd (h ▸ h_rank) (Nat.lt_irrefl _)
@@ -1285,7 +1289,7 @@ private theorem find_Phi_le_budget (uf : UF n) (x : Fin n)
       have hr' : 1 ≤ uf'.rank x := by rw [congrFun h_rank_eq x]; exact hr
       -- phi doesn't increase with path compression
       have hphi_le :=
-        phi_setParent_self_le uf' x root hx_not_root' hr' h_rank hparent_le hnr
+        phi_setParent_self_le uf' x root hx_not_root' hr' h_rank h_root_uf' hparent_le hnr
       by_cases hp : uf.isRoot (uf.parent x)
       · -- Parent is root: budget increases by 1
         rw [findBudget_parent_root uf x hx_root hr hp, hphi_eq]; omega
@@ -1305,7 +1309,7 @@ private theorem find_Phi_le_budget (uf : UF n) (x : Fin n)
             rw [hlevel, hiter, congrFun h_rank_eq x, h_rank_eq, hroot_eq]
             rwa [UF.rootOf_parent uf x hx] at hextra
           have hphi_drop :=
-            phi_setParent_self_drop uf' x root hx_not_root' hr' h_rank
+            phi_setParent_self_drop uf' x root hx_not_root' hr' h_rank h_root_uf'
               hparent_le hnr hextra'
           rw [hphi_eq]; omega
         · -- New level: budget increases by 1
