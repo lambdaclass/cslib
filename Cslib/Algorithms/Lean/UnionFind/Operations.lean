@@ -46,7 +46,8 @@ decreasing_by
   omega
 
 /-- Internal find that carries rank-preservation and rootOf
-    proofs through the recursion, avoiding circular dependencies with Correctness.lean. -/
+    proofs through the recursion, avoiding circular dependencies with Correctness.lean.
+    Use `find` instead of calling this directly. -/
 def findAux (uf : UF n) (x : Fin n) :
     { tm : TimeM ℕ (Fin n × UF n) //
       tm.ret.2.rank = uf.rank ∧
