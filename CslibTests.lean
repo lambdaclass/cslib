@@ -12,3 +12,4 @@ public import CslibTests.ImportWithMathlib
 public import CslibTests.LTS
 public import CslibTests.LambdaCalculus
 public import CslibTests.Reduction
+public import CslibTests.UnionFind
