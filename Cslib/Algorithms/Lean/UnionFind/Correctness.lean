@@ -55,17 +55,17 @@ private theorem rootOf_redirect (uf uf' : UF n) (ra rb : Fin n)
     by_cases hza : z = ra
     · -- z = ra: parent'(ra) = rb, and rb is a root in uf'
       subst hza
-      simp [hrz]
+      simp only [hrz, ↓reduceIte]
       have hp_z : uf'.parent z = rb := by rw [hp]; simp
       have hb' : uf'.isRoot rb := by
-        show uf'.parent rb = rb; rw [hp]; simp [Ne.symm hne]; exact hb
+        change uf'.parent rb = rb; rw [hp]; simp only [Ne.symm hne, ↓reduceIte]; exact hb
       have h_not_root : uf'.parent z ≠ z := by rw [hp_z]; exact Ne.symm hne
       have : uf'.rootOf z = uf'.rootOf (uf'.parent z) := by
         conv_lhs => unfold UF.rootOf; rw [dif_neg h_not_root]
       rw [this, hp_z, UF.rootOf_root uf' rb hb']
     · -- z ≠ ra: z is still a root in uf'
       have hp_z : uf'.parent z = uf.parent z := by rw [hp]; simp [hza]
-      have hz' : uf'.isRoot z := by show uf'.parent z = z; rw [hp_z]; exact hz
+      have hz' : uf'.isRoot z := by change uf'.parent z = z; rw [hp_z]; exact hz
       rw [UF.rootOf_root uf' z hz', hrz]; simp [hza]
   · -- z is not a root in uf
     have h_not_root_uf : ¬uf.isRoot z := hz
@@ -84,37 +84,37 @@ decreasing_by
 
 -- Auxiliary lemmas about link's parent function
 private theorem link_parent_case1 (uf : UF n) (rx ry : Fin n)
-    (hx : uf.isRoot rx) (hy : uf.isRoot ry) (hne : rx ≠ ry)
+    (hx : uf.isRoot rx) (_hy : uf.isRoot ry) (hne : rx ≠ ry)
     (h_lt : uf.rank rx < uf.rank ry) (w : Fin n) :
     (link uf rx ry hx hne).parent w = if w = rx then ry else uf.parent w := by
   unfold link; simp [h_lt]
 
 private theorem link_rank_case1 (uf : UF n) (rx ry : Fin n)
-    (hx : uf.isRoot rx) (hy : uf.isRoot ry) (hne : rx ≠ ry)
+    (hx : uf.isRoot rx) (_hy : uf.isRoot ry) (hne : rx ≠ ry)
     (h_lt : uf.rank rx < uf.rank ry) (w : Fin n) :
     (link uf rx ry hx hne).rank w = uf.rank w := by
   unfold link; simp [h_lt]
 
 private theorem link_parent_case2 (uf : UF n) (rx ry : Fin n)
-    (hx : uf.isRoot rx) (hy : uf.isRoot ry) (hne : rx ≠ ry)
+    (hx : uf.isRoot rx) (_hy : uf.isRoot ry) (hne : rx ≠ ry)
     (h_nlt : ¬uf.rank rx < uf.rank ry) (h_lt2 : uf.rank ry < uf.rank rx) (w : Fin n) :
     (link uf rx ry hx hne).parent w = if w = ry then rx else uf.parent w := by
   unfold link; simp [h_nlt, h_lt2]
 
 private theorem link_rank_case2 (uf : UF n) (rx ry : Fin n)
-    (hx : uf.isRoot rx) (hy : uf.isRoot ry) (hne : rx ≠ ry)
+    (hx : uf.isRoot rx) (_hy : uf.isRoot ry) (hne : rx ≠ ry)
     (h_nlt : ¬uf.rank rx < uf.rank ry) (h_lt2 : uf.rank ry < uf.rank rx) (w : Fin n) :
     (link uf rx ry hx hne).rank w = uf.rank w := by
   unfold link; simp [h_nlt, h_lt2]
 
 private theorem link_parent_case3 (uf : UF n) (rx ry : Fin n)
-    (hx : uf.isRoot rx) (hy : uf.isRoot ry) (hne : rx ≠ ry)
+    (hx : uf.isRoot rx) (_hy : uf.isRoot ry) (hne : rx ≠ ry)
     (h_nlt : ¬uf.rank rx < uf.rank ry) (h_nlt2 : ¬uf.rank ry < uf.rank rx) (w : Fin n) :
     (link uf rx ry hx hne).parent w = if w = ry then rx else uf.parent w := by
   unfold link; simp [h_nlt, h_nlt2]
 
 private theorem link_rank_case3 (uf : UF n) (rx ry : Fin n)
-    (hx : uf.isRoot rx) (hy : uf.isRoot ry) (hne : rx ≠ ry)
+    (hx : uf.isRoot rx) (_hy : uf.isRoot ry) (hne : rx ≠ ry)
     (h_nlt : ¬uf.rank rx < uf.rank ry) (h_nlt2 : ¬uf.rank ry < uf.rank rx) (w : Fin n) :
     (link uf rx ry hx hne).rank w = if w = rx then uf.rank rx + 1 else uf.rank w := by
   unfold link; simp [h_nlt, h_nlt2]
@@ -249,13 +249,14 @@ private theorem link_invariant (uf : UF n) (rx ry : Fin n)
             link_treeSize_winner uf rx ry hx hy hne ry (by simp [h1])
     · rw [link_treeSize_other uf rx ry hx hy hne r hr_ne_rx hr_ry]
       exact inv r (by have := hr; unfold link UF.isRoot at this;
-                      simp [h1, hr_ne_rx] at this; exact this)
+                      simp only [h1, hr_ne_rx, ↓reduceDIte, ↓reduceIte] at this
+                      exact this)
   · -- Cases 2,3: rank rx ≥ rank ry, loser = ry, winner = rx
     have h_ry_nr : ¬(link uf rx ry hx hne).isRoot ry := by
       intro h; have := h; unfold link UF.isRoot at this
       split_ifs at this with h2
-      · simp at this; exact hne this
-      · simp at this; exact hne this
+      · simp only [ite_true] at this; exact hne this
+      · simp only [ite_true] at this; exact hne this
     have hr_ne_ry : r ≠ ry := fun heq => h_ry_nr (heq ▸ hr)
     by_cases hr_rx : r = rx
     · rw [hr_rx]
@@ -285,7 +286,8 @@ private theorem link_invariant (uf : UF n) (rx ry : Fin n)
         unfold link; split_ifs <;> simp [hr_rx]
       rw [h_rank, link_treeSize_other uf rx ry hx hy hne r hr_rx hr_ne_ry]
       exact inv r (by have := hr; unfold link UF.isRoot at this
-                      split_ifs at this with h2 <;> simp [hr_ne_ry] at this <;> exact this)
+                      split_ifs at this with h2 <;>
+                        simp only [hr_ne_ry, ↓reduceIte] at this <;> exact this)
 
 /-- find preserves the counting invariant: ranks and rootOf are unchanged. -/
 private theorem find_preserves_invariant (uf : UF n) (x : Fin n)
@@ -313,7 +315,7 @@ private theorem op_preserves_invariant (uf : UF n) (op : Op n)
   cases op with
   | find x => exact find_preserves_invariant uf x inv
   | union x y =>
-    show ∀ r, (⟪union uf x y⟫).isRoot r →
+    change ∀ r, (⟪union uf x y⟫).isRoot r →
       2 ^ (⟪union uf x y⟫).rank r ≤ treeSize (⟪union uf x y⟫) r
     intro r hr
     have inv₂ := find_preserves_invariant (⟪find uf x⟫).2 y
@@ -340,7 +342,7 @@ private theorem counting_invariant (ops : List (Op n)) (uf : UF n)
   induction ops generalizing uf with
   | nil => exact inv
   | cons op ops ih =>
-    show ∀ r, (⟪runOps (⟪runOp uf op⟫) ops⟫).isRoot r →
+    change ∀ r, (⟪runOps (⟪runOp uf op⟫) ops⟫).isRoot r →
       2 ^ (⟪runOps (⟪runOp uf op⟫) ops⟫).rank r ≤
         treeSize (⟪runOps (⟪runOp uf op⟫) ops⟫) r
     exact ih (⟪runOp uf op⟫) (op_preserves_invariant uf op inv)

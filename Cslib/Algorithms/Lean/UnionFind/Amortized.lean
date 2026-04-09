@@ -384,7 +384,7 @@ private theorem phi_setParent_self_le (uf : UF n) (x r : Fin n)
             (uf.setParent x r h_rank).rank x :=
           Nat.mul_le_mul_right _ h_alpha_sub
       _ = (alpha n - level uf x hx hr - 1) * uf.rank x := by
-          simp [UF.setParent, hne]
+          simp [UF.setParent]
       _ ≤ (alpha n - level uf x hx hr) * uf.rank x - iter uf x hx hr := hphi_lb
 
 /-- **Strict decrease**: under the `hextra` condition (the next iterate of `A`
@@ -446,7 +446,7 @@ private theorem phi_setParent_self_drop (uf : UF n) (x r : Fin n)
             iter (uf.setParent x r h_rank) x hx' hr' + 1
           ≤ (alpha n - level uf x hx hr) * uf.rank x - iter uf x hx hr := by
       rw [hlevel_eq]
-      simp only [UF.setParent, hne]
+      simp only [UF.setParent]
       set B := (alpha n - level uf x hx hr) * uf.rank x
       have htmp : B - iter (uf.setParent x r h_rank) x hx' hr' + 1 ≤
           B - (iter uf x hx hr + 1) + 1 := by
@@ -508,7 +508,7 @@ private theorem phi_setParent_self_drop (uf : UF n) (x r : Fin n)
           dsimp [B]
           exact Nat.mul_le_mul_right _ h_alpha_sub
         _ = (alpha n - level uf x hx hr - 1) * uf.rank x := by
-            simp [UF.setParent, hne]
+            simp [UF.setParent]
     exact le_trans hupper hphi_lb
 
 /-! ### Stage 3a: Potential increase of link
@@ -546,14 +546,14 @@ theorem phi_le_alpha_mul_rank (uf : UF n) (x : Fin n) :
 
 /-- link preserves parent of nodes other than the attached root (case 1: rx < ry). -/
 private theorem link_parent_case1 (uf : UF n) (rx ry : Fin n)
-    (hx : uf.isRoot rx) (hy : uf.isRoot ry) (hne : rx ≠ ry)
+    (hx : uf.isRoot rx) (_hy : uf.isRoot ry) (hne : rx ≠ ry)
     (h : uf.rank rx < uf.rank ry) (z : Fin n) (hz : z ≠ rx) :
     (link uf rx ry hx hne).parent z = uf.parent z := by
   simp [link, h, hz]
 
 /-- link preserves parent of nodes other than the attached root (case 2: ry < rx). -/
 private theorem link_parent_case2 (uf : UF n) (rx ry : Fin n)
-    (hx : uf.isRoot rx) (hy : uf.isRoot ry) (hne : rx ≠ ry)
+    (hx : uf.isRoot rx) (_hy : uf.isRoot ry) (hne : rx ≠ ry)
     (h1 : ¬uf.rank rx < uf.rank ry) (h2 : uf.rank ry < uf.rank rx)
     (z : Fin n) (hz : z ≠ ry) :
     (link uf rx ry hx hne).parent z = uf.parent z := by
@@ -561,7 +561,7 @@ private theorem link_parent_case2 (uf : UF n) (rx ry : Fin n)
 
 /-- link preserves parent of nodes other than ry (case 3: equal ranks). -/
 private theorem link_parent_case3 (uf : UF n) (rx ry : Fin n)
-    (hx : uf.isRoot rx) (hy : uf.isRoot ry) (hne : rx ≠ ry)
+    (hx : uf.isRoot rx) (_hy : uf.isRoot ry) (hne : rx ≠ ry)
     (h1 : ¬uf.rank rx < uf.rank ry) (h2 : ¬uf.rank ry < uf.rank rx)
     (z : Fin n) (hz : z ≠ ry) :
     (link uf rx ry hx hne).parent z = uf.parent z := by
@@ -569,7 +569,7 @@ private theorem link_parent_case3 (uf : UF n) (rx ry : Fin n)
 
 /-- link preserves rank (cases 1 and 2). -/
 private theorem link_rank_eq_of_ne_rank (uf : UF n) (rx ry : Fin n)
-    (hx : uf.isRoot rx) (hy : uf.isRoot ry) (hne : rx ≠ ry)
+    (hx : uf.isRoot rx) (_hy : uf.isRoot ry) (hne : rx ≠ ry)
     (hrank : uf.rank rx ≠ uf.rank ry) :
     (link uf rx ry hx hne).rank = uf.rank := by
   unfold link
@@ -580,7 +580,7 @@ private theorem link_rank_eq_of_ne_rank (uf : UF n) (rx ry : Fin n)
 
 /-- link rank in case 3: rx gets rank + 1, others unchanged. -/
 private theorem link_rank_case3 (uf : UF n) (rx ry : Fin n)
-    (hx : uf.isRoot rx) (hy : uf.isRoot ry) (hne : rx ≠ ry)
+    (hx : uf.isRoot rx) (_hy : uf.isRoot ry) (hne : rx ≠ ry)
     (h1 : ¬uf.rank rx < uf.rank ry) (h2 : ¬uf.rank ry < uf.rank rx)
     (z : Fin n) :
     (link uf rx ry hx hne).rank z =
@@ -589,39 +589,39 @@ private theorem link_rank_case3 (uf : UF n) (rx ry : Fin n)
 
 /-- link preserves isRoot for all nodes except the attached one (case 1). -/
 private theorem link_isRoot_case1 (uf : UF n) (rx ry : Fin n)
-    (hx : uf.isRoot rx) (hy : uf.isRoot ry) (hne : rx ≠ ry)
+    (hx : uf.isRoot rx) (_hy : uf.isRoot ry) (hne : rx ≠ ry)
     (h : uf.rank rx < uf.rank ry) (z : Fin n) (hz : z ≠ rx) :
     (link uf rx ry hx hne).isRoot z ↔ uf.isRoot z := by
   simp [link, h, UF.isRoot, hz]
 
 /-- In case 1, rx is not a root after link. -/
 private theorem link_not_isRoot_case1 (uf : UF n) (rx ry : Fin n)
-    (hx : uf.isRoot rx) (hy : uf.isRoot ry) (hne : rx ≠ ry)
+    (hx : uf.isRoot rx) (_hy : uf.isRoot ry) (hne : rx ≠ ry)
     (h : uf.rank rx < uf.rank ry) :
     ¬(link uf rx ry hx hne).isRoot rx := by
-  simp [link, h, UF.isRoot]
+  simp only [link, h, UF.isRoot, ↓reduceDIte]
   exact fun h => absurd h.symm hne
 
 /-- In case 2, ry is not a root after link. -/
 private theorem link_not_isRoot_case2 (uf : UF n) (rx ry : Fin n)
-    (hx : uf.isRoot rx) (hy : uf.isRoot ry) (hne : rx ≠ ry)
+    (hx : uf.isRoot rx) (_hy : uf.isRoot ry) (hne : rx ≠ ry)
     (h1 : ¬uf.rank rx < uf.rank ry) (h2 : uf.rank ry < uf.rank rx) :
     ¬(link uf rx ry hx hne).isRoot ry := by
   simp [link, h1, h2, UF.isRoot, hne]
 
 /-- In case 3, ry is not a root after link. -/
 private theorem link_not_isRoot_case3 (uf : UF n) (rx ry : Fin n)
-    (hx : uf.isRoot rx) (hy : uf.isRoot ry) (hne : rx ≠ ry)
+    (hx : uf.isRoot rx) (_hy : uf.isRoot ry) (hne : rx ≠ ry)
     (h1 : ¬uf.rank rx < uf.rank ry) (h2 : ¬uf.rank ry < uf.rank rx) :
     ¬(link uf rx ry hx hne).isRoot ry := by
   simp [link, h1, h2, UF.isRoot, hne]
 
 /-- In case 3, rx is still a root after link. -/
 private theorem link_isRoot_rx_case3 (uf : UF n) (rx ry : Fin n)
-    (hx : uf.isRoot rx) (hy : uf.isRoot ry) (hne : rx ≠ ry)
+    (hx : uf.isRoot rx) (_hy : uf.isRoot ry) (hne : rx ≠ ry)
     (h1 : ¬uf.rank rx < uf.rank ry) (h2 : ¬uf.rank ry < uf.rank rx) :
     (link uf rx ry hx hne).isRoot rx := by
-  simp [link, h1, h2, UF.isRoot, hne]
+  simp only [link, h1, h2, UF.isRoot, hne, ↓reduceDIte, ↓reduceIte]
   exact hx
 
 /-- When parent-rank weakly increases and everything else stays the same,
@@ -648,7 +648,8 @@ theorem phi_le_of_parent_rank_le (uf uf' : UF n) (z : Fin n)
     -- Need: (alpha - level') * rank' - iter' ≤ (alpha - level) * rank - iter
     -- where level' ≥ level (parent rank increased) and iter' adjusted accordingly
     -- Key: rank' = rank (by hr)
-    -- level' ≥ level because {k : A k (rank z) ≤ new_parent_rank} ⊇ {k : A k (rank z) ≤ old_parent_rank}
+    -- level' ≥ level because
+    -- {k : A k (rank z) ≤ new_parent_rank} ⊇ {k : A k (rank z) ≤ old_parent_rank}
     -- So Nat.find for level' (first k that fails) ≥ Nat.find for level (first k that fails)
     -- Hence level' = Nat.find' - 1 ≥ Nat.find - 1 = level
     -- Key conversion: the parent-rank in uf' is ≥ that in uf
@@ -727,7 +728,9 @@ theorem phi_le_of_parent_rank_le (uf uf' : UF n) (z : Fin n)
         omega
       -- phi(uf', z) = (alpha - L') * R' - I' where L' ≥ L+1, R' = R, I' ≥ 1
       -- (alpha - L') ≤ alpha - L - 1
-      have h_alpha_sub : alpha n - level uf' z hroot' hr'' ≤ alpha n - level uf z hroot hr' - 1 := by
+      have h_alpha_sub :
+          alpha n - level uf' z hroot' hr'' ≤
+            alpha n - level uf z hroot hr' - 1 := by
         omega
       calc (alpha n - level uf' z hroot' hr'') * uf'.rank z - iter uf' z hroot' hr''
           ≤ (alpha n - level uf' z hroot' hr'') * uf'.rank z := Nat.sub_le _ _
@@ -750,7 +753,7 @@ To reason about the global potential Φ after `setParent` or `link`, we need:
 These lemmas are used both by `link_Phi_le` and by `find_Phi_le_budget`. -/
 
 private theorem level_eq_of_same_edge_data (uf uf' : UF n) (z : Fin n)
-    (hp : uf'.parent z = uf.parent z)
+    (_hp : uf'.parent z = uf.parent z)
     (hr : uf'.rank z = uf.rank z)
     (hrp : uf'.rank (uf'.parent z) = uf.rank (uf.parent z))
     (hz : ¬uf.isRoot z) (hz' : ¬uf'.isRoot z)
@@ -903,7 +906,7 @@ private theorem parent_rank_le_root_rank (uf : UF n) (x : Fin n)
     exact Nat.le_of_lt hlt
 
 private def zeroBudget (uf : UF n) (x : Fin n) : Nat :=
-  if hx : uf.isRoot x then
+  if _hx : uf.isRoot x then
     0
   else if uf.rank x = 0 then
     1
@@ -912,23 +915,23 @@ private def zeroBudget (uf : UF n) (x : Fin n) : Nat :=
 termination_by uf.rankMax - uf.rank x
 decreasing_by
   all_goals
-    have h1 := uf.rank_lt x (by rwa [UF.isRoot] at hx)
+    have h1 := uf.rank_lt x (by rwa [UF.isRoot] at _hx)
     have h2 := uf.rank_le_max (uf.parent x)
     omega
 
 private def rootChildBudget (uf : UF n) (x : Fin n) : Nat :=
-  if hx : uf.isRoot x then
+  if _hx : uf.isRoot x then
     0
   else if uf.rank x = 0 then
     rootChildBudget uf (uf.parent x)
-  else if hp : uf.isRoot (uf.parent x) then
+  else if _hp : uf.isRoot (uf.parent x) then
     1
   else
     rootChildBudget uf (uf.parent x)
 termination_by uf.rankMax - uf.rank x
 decreasing_by
   all_goals
-    have h1 := uf.rank_lt x (by rwa [UF.isRoot] at hx)
+    have h1 := uf.rank_lt x (by rwa [UF.isRoot] at _hx)
     have h2 := uf.rank_le_max (uf.parent x)
     omega
 
@@ -957,12 +960,12 @@ private theorem zeroBudget_eq_zero_of_pos (uf : UF n) (x : Fin n)
     (hx : ¬uf.isRoot x) (hr : 1 ≤ uf.rank x) :
     zeroBudget uf x = 0 := by
   unfold zeroBudget
-  simp [hx, show ¬uf.rank x = 0 by omega]
+  simp only [hx, show ¬uf.rank x = 0 by omega, ↓reduceDIte]
   have hparent_pos : 1 ≤ uf.rank (uf.parent x) := by
     have hlt := uf.rank_lt x (by rwa [UF.isRoot] at hx)
     omega
   by_cases hp : uf.isRoot (uf.parent x)
-  · simpa [zeroBudget, hp]
+  · simp [zeroBudget, hp]
   · exact zeroBudget_eq_zero_of_pos uf (uf.parent x) hp hparent_pos
 termination_by uf.rankMax - uf.rank x
 decreasing_by
@@ -1016,7 +1019,7 @@ private theorem mem_interiorLevels_witness (uf : UF n) (x : Fin n) {k : ℕ}
       uf.rank x ≤ uf.rank y ∧
       uf.rank (uf.parent y) ≤ uf.rank (uf.rootOf x) := by
   by_cases hx : uf.isRoot x
-  · simpa [interiorLevels, hx] using hk
+  · simp [interiorLevels, hx] at hk
   · by_cases hr0 : uf.rank x = 0
     · unfold interiorLevels at hk
       have hk' : k ∈ interiorLevels uf (uf.parent x) := by
@@ -1034,7 +1037,7 @@ private theorem mem_interiorLevels_witness (uf : UF n) (x : Fin n) {k : ℕ}
           simpa [hx, hr0, hp] using hk
         have : False := by
           unfold interiorLevels at hk'
-          simpa [hp] using hk'
+          simp [hp] at hk'
         exact this.elim
       · have hk' :
           k = level uf x hx hr ∨ k ∈ interiorLevels uf (uf.parent x) := by
@@ -1077,7 +1080,7 @@ private theorem interiorLevels_card_le_alpha (uf : UF n) (x : Fin n)
 
 private theorem hextra_of_mem_interiorLevels (uf : UF n) (x : Fin n)
     (hx : ¬uf.isRoot x) (hr : 1 ≤ uf.rank x)
-    (hp : ¬uf.isRoot (uf.parent x))
+    (_hp : ¬uf.isRoot (uf.parent x))
     (hk : level uf x hx hr ∈ interiorLevels uf (uf.parent x)) :
     iterFn (A (level uf x hx hr)) (iter uf x hx hr + 1) (uf.rank x) ≤
       uf.rank (uf.rootOf (uf.parent x)) := by
@@ -1122,11 +1125,11 @@ private theorem findBudget_rank_zero (uf : UF n) (x : Fin n)
     rw [hparent0]
     unfold findBudget
     unfold interiorLevels zeroBudget rootChildBudget
-    simp [hx, hr0, hp, hinter, hrootchild]
+    simp [hx, hr0, hinter, hrootchild]
   · have hzparent := zeroBudget_eq_zero_of_pos uf (uf.parent x) hp hparent_pos
     conv_lhs => unfold findBudget interiorLevels zeroBudget rootChildBudget
     rw [findBudget, hzparent]
-    simp [hx, hr0, hp]
+    simp [hx, hr0]
     omega
 
 private theorem findBudget_parent_root (uf : UF n) (x : Fin n)
@@ -1159,7 +1162,7 @@ private theorem findBudget_same_level (uf : UF n) (x : Fin n)
   have hzparent := zeroBudget_eq_zero_of_pos uf (uf.parent x) hp hparent_pos
   conv_lhs => unfold findBudget interiorLevels zeroBudget rootChildBudget
   rw [findBudget, hzparent]
-  simp [hx, hr0, hp, hk, hz]
+  simp [hx, hr0, hp, hk]
 
 private theorem findBudget_new_level (uf : UF n) (x : Fin n)
     (hx : ¬uf.isRoot x) (hr : 1 ≤ uf.rank x)
@@ -1174,7 +1177,7 @@ private theorem findBudget_new_level (uf : UF n) (x : Fin n)
   have hzparent := zeroBudget_eq_zero_of_pos uf (uf.parent x) hp hparent_pos
   conv_lhs => unfold findBudget interiorLevels zeroBudget rootChildBudget
   rw [findBudget, hzparent]
-  simp [hx, hr0, hp, hk, hz]
+  simp [hx, hr0, hp, hk]
   omega
 
 private theorem findBudget_le_alpha_add_two (uf : UF n) (x : Fin n)
@@ -1272,9 +1275,9 @@ private theorem find_Phi_le_budget (uf : UF n) (x : Fin n)
       have hphi0 : phi uf x = 0 := phi_nonroot_rank_zero uf x hx_root hr0
       have hphi0' : phi (uf'.setParent x root h_rank) x = 0 := by
         apply phi_nonroot_rank_zero
-        · simp [UF.isRoot, UF.setParent]
+        · simp only [UF.isRoot, UF.setParent]
           exact fun h => absurd (h ▸ h_rank) (Nat.lt_irrefl _)
-        · show uf'.rank x = 0
+        · change uf'.rank x = 0
           rw [congrFun h_rank_eq x]; exact hr0
       rw [hphi_eq, hphi0, hphi0']; omega
     · -- Rank ≥ 1
@@ -1385,7 +1388,6 @@ theorem link_Phi_le (uf : UF n) (rx ry : Fin n)
       have hrx_mem : rx ∈ Finset.univ := Finset.mem_univ rx
       rw [← Finset.add_sum_erase Finset.univ (phi uf') hrx_mem]
       rw [← Finset.add_sum_erase Finset.univ (phi uf) hrx_mem]
-
       -- phi(uf', rx) = alpha(n) * (rank(rx) + 1) = phi(uf, rx) + alpha(n)
       have hrx_root' : uf'.isRoot rx := link_isRoot_rx_case3 uf rx ry hx hy hne h1 h2
       have hrx_rank' : uf'.rank rx = uf.rank rx + 1 := by
@@ -1395,7 +1397,6 @@ theorem link_Phi_le (uf : UF n) (rx ry : Fin n)
       have hphi_rx : phi uf rx = alpha n * uf.rank rx := phi_root uf rx hx
       have hphi_rx_diff : phi uf' rx = phi uf rx + alpha n := by
         rw [hphi_rx', hphi_rx, Nat.mul_add, Nat.mul_one]
-
       -- For z ≠ rx: phi(uf', z) ≤ phi(uf, z)
       suffices hrest : ∑ x ∈ Finset.univ.erase rx, phi uf' x ≤
           ∑ x ∈ Finset.univ.erase rx, phi uf x by
@@ -1418,7 +1419,7 @@ theorem link_Phi_le (uf : UF n) (rx ry : Fin n)
           rw [hp]
           -- uf'.rank (uf.parent z) uses the rank function from case 3:
           -- if uf.parent z = rx then uf.rank rx + 1 else uf.rank (uf.parent z)
-          show uf.rank (uf.parent z) ≤ (link uf rx ry hx hne).rank (uf.parent z)
+          change uf.rank (uf.parent z) ≤ (link uf rx ry hx hne).rank (uf.parent z)
           simp only [link, h1, h2]
           by_cases hprx : uf.parent z = rx
           · simp [hprx]
@@ -1426,13 +1427,11 @@ theorem link_Phi_le (uf : UF n) (rx ry : Fin n)
         by_cases hroot_z : uf.isRoot z
         · -- z is a root in uf, still root in uf'
           have hroot_z' : uf'.isRoot z := by
-            simp [huf', link, h1, h2, UF.isRoot, hzry]
-            exact hroot_z
+            change uf'.parent z = z; rw [hp]; exact hroot_z
           rw [phi_root uf' z hroot_z', phi_root uf z hroot_z, hr]
         · -- z is non-root in uf
           have hroot_z' : ¬uf'.isRoot z := by
-            simp [huf', link, h1, h2, UF.isRoot, hzry]
-            exact hroot_z
+            change ¬(uf'.parent z = z); rw [hp]; exact hroot_z
           by_cases hprx : uf.parent z = rx
           · -- parent(z) = rx: parent-rank increases, use phi_le_of_parent_rank_le
             have hn_par : uf.rank (uf.parent z) < n := hn (uf.parent z)
@@ -1537,14 +1536,14 @@ private theorem runOp_amortized (uf : UF n) (op : Op n)
   | find x =>
     -- runOp uf (.find x) = (find uf x) >>= fun (_, uf') => pure uf'
     -- time = (find uf x).time, ret = ⟪find uf x⟫.2
-    show (find uf x >>= fun p => pure p.2).time +
+    change (find uf x >>= fun p => pure p.2).time +
          Phi (find uf x >>= fun p => pure p.2).ret ≤ Phi uf + (3 * alpha n + 4)
     simp only [time_bind, time_pure, Nat.add_zero, ret_bind, ret_pure]
     have := find_amortized uf x hn
     omega
   | union x y =>
     -- runOp uf (.union x y) = union uf x y
-    show (union uf x y).time + Phi ⟪union uf x y⟫ ≤ Phi uf + (3 * alpha n + 4)
+    change (union uf x y).time + Phi ⟪union uf x y⟫ ≤ Phi uf + (3 * alpha n + 4)
     have := union_amortized uf x y hn
     omega
 
@@ -1565,7 +1564,7 @@ private theorem runOps_amortized_from_init (n : ℕ) (hn : 2 ≤ n)
     have hrank : ∀ z, uf.rank z < n := fun z => by
       rw [huf_def]; exact rank_lt_of_runOps n hn done z
     -- Unfold one step
-    show (runOps uf (op :: rest)).time + Phi ⟪runOps uf (op :: rest)⟫ ≤
+    change (runOps uf (op :: rest)).time + Phi ⟪runOps uf (op :: rest)⟫ ≤
          Phi uf + (rest.length + 1) * (3 * alpha n + 4)
     simp only [runOps_cons, time_bind, ret_bind]
     set uf' := ⟪runOp uf op⟫ with huf'_def

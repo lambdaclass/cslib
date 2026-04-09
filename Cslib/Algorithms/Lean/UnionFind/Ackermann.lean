@@ -59,7 +59,7 @@ private theorem iterFn_succ_add (n j : ℕ) : iterFn (· + 1) n j = j + n := by
   | succ n ih => simp [iterFn, ih]; omega
 
 theorem A_one (j : ℕ) : A 1 j = 2 * j + 1 := by
-  show iterFn (A 0) (j + 1) j = 2 * j + 1
+  change iterFn (A 0) (j + 1) j = 2 * j + 1
   have : ∀ n m, iterFn (A 0) n m = iterFn (· + 1) n m := by
     intro n m; induction n with
     | zero => simp
@@ -84,7 +84,7 @@ private theorem iterFn_A_one (n j : ℕ) : iterFn (A 1) n j = 2 ^ n * (j + 1) - 
   omega
 
 theorem A_two (j : ℕ) : A 2 j = 2 ^ (j + 1) * (j + 1) - 1 := by
-  show iterFn (A 1) (j + 1) j = 2 ^ (j + 1) * (j + 1) - 1
+  change iterFn (A 1) (j + 1) j = 2 ^ (j + 1) * (j + 1) - 1
   exact iterFn_A_one (j + 1) j
 
 /-! ### Monotonicity and growth -/
@@ -127,14 +127,14 @@ private theorem A_strictMono_and_gt (k : ℕ) : StrictMono (A k) ∧ ∀ j, j < 
     obtain ⟨hm, hgt⟩ := ih
     constructor
     · intro a b hab
-      show iterFn (A k) (a + 1) a < iterFn (A k) (b + 1) b
+      change iterFn (A k) (a + 1) a < iterFn (A k) (b + 1) b
       calc iterFn (A k) (a + 1) a
           < iterFn (A k) (a + 1) b :=
             iterFn_strictMono_right hm (a + 1) hab
         _ ≤ iterFn (A k) (b + 1) b :=
             iterFn_mono_left hgt b (a + 1) (b + 1) (by omega)
     · intro j
-      show j < iterFn (A k) (j + 1) j
+      change j < iterFn (A k) (j + 1) j
       calc j < A k j := hgt j
         _ = iterFn (A k) 1 j := by simp
         _ ≤ iterFn (A k) (j + 1) j :=
@@ -154,7 +154,7 @@ theorem A_ge_succ (k j : ℕ) : j + 1 ≤ A k j :=
 
 /-- `A` is monotone in `k`: `A k j ≤ A (k+1) j`. -/
 private theorem A_succ_ge (k j : ℕ) : A k j ≤ A (k + 1) j := by
-  show A k j ≤ iterFn (A k) (j + 1) j
+  change A k j ≤ iterFn (A k) (j + 1) j
   calc A k j = iterFn (A k) 1 j := by simp
     _ ≤ iterFn (A k) (j + 1) j :=
         iterFn_mono_left (fun j => A_gt k j) j 1 (j + 1) (by omega)
@@ -178,7 +178,7 @@ theorem A_one_ge (k : ℕ) : k + 2 ≤ A k 1 := by
   | zero => simp
   | succ k ih =>
     -- A (k+1) 1 = iterFn (A k) 2 1 = A k (A k 1)
-    show k + 3 ≤ iterFn (A k) 2 1
+    change k + 3 ≤ iterFn (A k) 2 1
     simp only [iterFn_succ, iterFn_zero]
     -- Need: k + 3 ≤ A k (A k 1)
     -- By ih: A k 1 ≥ k + 2

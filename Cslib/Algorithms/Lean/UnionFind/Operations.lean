@@ -34,7 +34,7 @@ variable {n : ℕ}
 /-- Rank of any non-root x is less than rank of its rootOf. -/
 theorem rank_lt_rootOf (uf : UF n) (x : Fin n) (hx : ¬uf.isRoot x) :
     uf.rank x < uf.rank (uf.rootOf x) := by
-  unfold UF.rootOf; simp [UF.isRoot] at hx; simp [hx]
+  unfold UF.rootOf; simp only [UF.isRoot] at hx; simp only [hx, ↓reduceDIte]
   have h_lt := uf.rank_lt x hx
   by_cases hp : uf.isRoot (uf.parent x)
   · rw [UF.rootOf_root uf (uf.parent x) hp]; exact h_lt
@@ -82,17 +82,17 @@ def findAux (uf : UF n) (x : Fin n) :
       conv_lhs => rw [UF.rootOf]; simp [h]
       exact h_root_eq.symm
     ⟨⟨(root, uf'.setParent x root h_rank), 1 + ih.val.time⟩,
-     by show (uf'.setParent x root h_rank).rank = uf.rank
+     by change (uf'.setParent x root h_rank).rank = uf.rank
         rw [UF.setParent_rank]; exact h_rank_eq,
-     by show root = uf.rootOf x
+     by change root = uf.rootOf x
         rw [h_root_eq, UF.rootOf_parent uf x h],
      fun y hy => by
-        show (uf'.setParent x root h_rank).isRoot y
+        change (uf'.setParent x root h_rank).isRoot y
         by_cases hyx : y = x
         · exfalso; rw [hyx] at hy; exact h hy
         · exact UF.setParent_isRoot_of_ne uf' x root h_rank y (h_pres y hy) hyx,
      fun y => by
-        show (uf'.setParent x root h_rank).rootOf y = uf.rootOf y
+        change (uf'.setParent x root h_rank).rootOf y = uf.rootOf y
         rw [UF.setParent_preserves_rootOf uf' x root h_rank h_root_in_uf' y]
         exact h_rootOf y⟩
 termination_by uf.rankMax - uf.rank x

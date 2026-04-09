@@ -67,11 +67,11 @@ def UF.init (n : ℕ) : UF n where
 /-- Pure (non-monadic) root computation, for use in specifications.
 Follows parent pointers to the root. -/
 def UF.rootOf (uf : UF n) (x : Fin n) : Fin n :=
-  if h : uf.parent x = x then x
+  if _h : uf.parent x = x then x
   else uf.rootOf (uf.parent x)
 termination_by uf.rankMax - uf.rank x
 decreasing_by
-  have h1 := uf.rank_lt x h
+  have h1 := uf.rank_lt x _h
   have h2 := uf.rank_le_max (uf.parent x)
   omega
 
@@ -134,7 +134,7 @@ theorem UF.rootOf_parent (uf : UF n) (x : Fin n) (h : ¬uf.isRoot x) :
 theorem UF.setParent_isRoot_of_ne (uf : UF n) (x r : Fin n) (h : uf.rank x < uf.rank r)
     (y : Fin n) (hy : uf.isRoot y) (hyx : y ≠ x) :
     (uf.setParent x r h).isRoot y := by
-  simp [isRoot, setParent, hyx]
+  simp only [isRoot, setParent, hyx, ↓reduceIte]
   exact hy
 
 /-- If `r` is the root of `x` in `uf`, then `setParent x r` preserves `rootOf` for all nodes. -/
@@ -150,7 +150,7 @@ theorem UF.setParent_preserves_rootOf (uf : UF n) (x r : Fin n)
     have h_px : uf'.parent x = r := by simp [huf', UF.setParent]
     have h_root_r : uf'.isRoot r := by
       rw [UF.isRoot, huf']
-      show (if r = x then r else uf.parent r) = r
+      change (if r = x then r else uf.parent r) = r
       rw [if_neg (Ne.symm h_ne)]
       exact h_isRoot
     have h_not_root' : ¬(uf'.parent x = x) := by

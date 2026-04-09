@@ -40,7 +40,7 @@ variable {n : ℕ}
 
 /-- Existence of the first k where A k (rank x) > rank (parent x).
 Used to define `level` via `Nat.find`. -/
-theorem exists_level (uf : UF n) (x : Fin n) (hx : ¬uf.isRoot x)
+theorem exists_level (uf : UF n) (x : Fin n) (_hx : ¬uf.isRoot x)
     (hr : 1 ≤ uf.rank x) :
     ∃ k, ¬(A k (uf.rank x) ≤ uf.rank (uf.parent x)) := by
   use uf.rank (uf.parent x)
@@ -62,7 +62,8 @@ theorem exists_iter (uf : UF n) (x : Fin n) (hx : ¬uf.isRoot x)
     ∃ i, ¬(iterFn (A (level uf x hx hr)) (i + 1) (uf.rank x) ≤ uf.rank (uf.parent x)) := by
   -- We show that Nat.find(exists_level) ≥ 1, so level + 1 = Nat.find(exists_level)
   set F := Nat.find (exists_level uf x hx hr) with hF_def
-  -- First show F ≥ 1: F = 0 would mean A 0 (rank x) > rank (parent x), i.e. rank x + 1 > rank (parent x)
+  -- First show F ≥ 1: F = 0 would mean A 0 (rank x) > rank (parent x),
+  -- i.e. rank x + 1 > rank (parent x).
   -- But rank_lt gives rank x < rank (parent x), so rank x + 1 ≤ rank (parent x). Contradiction.
   have hF_pos : 0 < F := by
     rw [Nat.pos_iff_ne_zero, Ne, Nat.find_eq_zero]
